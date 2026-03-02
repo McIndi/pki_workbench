@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ certificate.name }} · Certificate Detail{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div>
+        <h1 class="h3 mb-0">{{ certificate.name }}</h1>
+        <p class="text-body-secondary mb-0">Issued certificate details and download artifacts</p>
+    </div>
+    {% if certificate.issued_by %}
+        <a href="{% url 'pki-ca-workbench' certificate.issued_by.id %}" class="btn btn-outline-secondary">Back to CA Workbench</a>
+    {% endif %}
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm"><div class="card-body"><div class="small text-body-secondary">Serial</div><div class="fw-semibold">{{ certificate.serial_number }}</div></div></div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm"><div class="card-body"><div class="small text-body-secondary">Algorithm</div><div class="fw-semibold">{{ certificate.private_key.algorithm|upper }}</div></div></div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm"><div class="card-body"><div class="small text-body-secondary">Valid From</div><div class="fw-semibold">{{ certificate.not_valid_before }}</div></div></div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm"><div class="card-body"><div class="small text-body-secondary">Valid To</div><div class="fw-semibold">{{ certificate.not_valid_after }}</div></div></div>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <h2 class="h6 text-uppercase text-body-secondary mb-3">Downloads</h2>
+        <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-primary" href="{% url 'pki-issued-certificate-download' certificate.id 'pubcert' %}">Download Public Cert</a>
+            <a class="btn btn-outline-primary" href="{% url 'pki-issued-certificate-download' certificate.id 'pubcert-chain' %}">Download Cert with Chain</a>
+            <a class="btn btn-outline-primary" href="{% url 'pki-issued-certificate-download' certificate.id 'pair-zip' %}">Download Cert/Key Pair (ZIP)</a>
+            {% if certificate.csr %}
+                <a class="btn btn-outline-secondary" href="{% url 'pki-issued-certificate-download' certificate.id 'csr' %}">Download CSR</a>
+            {% endif %}
+        </div>
+        <div class="form-text mt-2">Filenames include `pubcert`, `privkey`, and `csr` markers for predictable handling.</div>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <h2 class="h6 text-uppercase text-body-secondary mb-3">Create Profile from This Certificate</h2>
+        <p class="text-body-secondary">Capture this certificate's key algorithm and extensions as a reusable profile (excluding subject values like common name and passphrase).</p>
+        <form method="post" class="row g-3">
+            {% csrf_token %}
+            {% if profile_from_certificate_form.non_field_errors %}
+                <div class="col-12 alert alert-danger mb-0">{{ profile_from_certificate_form.non_field_errors }}</div>
+            {% endif %}
+            <div class="col-md-6">
+                <label class="form-label" for="{{ profile_from_certificate_form.name.id_for_label }}">Profile name</label>
+                {{ profile_from_certificate_form.name }}
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="{{ profile_from_certificate_form.description.id_for_label }}">Description</label>
+                {{ profile_from_certificate_form.description }}
+            </div>
+            <div class="col-12 d-flex justify-content-end">
+                <button type="submit" class="btn btn-primary">Create Profile</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h2 class="h6 text-uppercase text-body-secondary mb-0">Certificate PEM</h2>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-copy-pem-button>Copy PEM</button>
+        </div>
+        <textarea class="form-control font-monospace" rows="12" readonly data-copy-pem-source>{{ certificate.certificate_pem }}</textarea>
+        <div class="form-text" data-copy-pem-feedback></div>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <h2 class="h6 text-uppercase text-body-secondary mb-2">Issuer</h2>
+        {% if certificate.issued_by %}
+            <p class="mb-0">
+                Issued by <a class="text-decoration-none" href="{% url 'pki-ca-workbench' certificate.issued_by.id %}">{{ certificate.issued_by.name }}</a>
+            </p>
+        {% else %}
+            <p class="mb-0 text-body-secondary">Issuer reference not available.</p>
+        {% endif %}
+    </div>
+</div>
+
+<script type="module" src="{% static 'pki/issued-certificate-detail.js' %}"></script>
+{% endblock %}

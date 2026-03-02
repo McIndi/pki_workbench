@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+
+{% block title %}Home · PKI Workbench{% endblock %}
+
+{% block content %}
+{% if dashboard %}
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">PKI Dashboard</h1>
+            <p class="text-body-secondary mb-0">Overview of your certificate authorities, certificates, and profiles.</p>
+        </div>
+        <a class="btn btn-outline-primary" href="{% url 'pki-create-root-ca' %}">Create Root CA</a>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-body-secondary small">Certificate Authorities</div>
+                    <div class="h4 mb-0">{{ dashboard.ca_count }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-body-secondary small">Issued Certificates</div>
+                    <div class="h4 mb-0">{{ dashboard.certificate_count }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-body-secondary small">Certificate Profiles</div>
+                    <div class="h4 mb-0">{{ dashboard.profile_count }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h2 class="h6 text-uppercase text-body-secondary mb-3">Certificates Closest to Expiration</h2>
+                    {% if dashboard.expiring_certificates %}
+                        <ul class="list-group list-group-flush">
+                            {% for item in dashboard.expiring_certificates %}
+                                <li class="list-group-item px-0 d-flex justify-content-between align-items-start gap-2">
+                                    <div>
+                                        <div class="fw-semibold"><a class="text-decoration-none" href="{% url 'pki-issued-certificate-detail' item.certificate.id %}">{{ item.certificate.name }}</a></div>
+                                        <div class="small text-body-secondary">Expires {{ item.certificate.not_valid_after|date:"Y-m-d H:i" }}</div>
+                                    </div>
+                                    {% if item.is_expired %}
+                                        <span class="badge text-bg-danger">Expired</span>
+                                    {% else %}
+                                        <span class="badge text-bg-warning">{{ item.days_until_expiry }} days</span>
+                                    {% endif %}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-body-secondary mb-0">No issued certificates yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h2 class="h6 text-uppercase text-body-secondary mb-3">CA Hierarchy</h2>
+                    {% if dashboard.ca_tree %}
+                        <ul class="list-unstyled mb-0">
+                            {% for node in dashboard.ca_tree %}
+                                {% include 'pki/_ca_tree_node.html' with node=node %}
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-body-secondary mb-0">No certificate authorities yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% else %}
+    <div class="p-5 mb-4 bg-body-tertiary rounded-3 border">
+        <div class="container-fluid py-2">
+            <h1 class="display-6 fw-semibold">PKI Workbench</h1>
+            <p class="col-md-8 fs-5 mb-0">Create root and intermediate certificate authorities, issue certificates, and manage reusable certificate profiles.</p>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,9 @@
+cryptography
+django
+django-fernet-encrypted-fields
+djangorestframework
+django-filter
+inflection
+uritemplate
+whitenoise
+django-environ

@@ -1,0 +1,13 @@
+<li class="mb-2">
+    <div class="d-flex align-items-center gap-2">
+        <a class="text-decoration-none fw-semibold" href="{% url 'pki-ca-workbench' node.authority.id %}">{{ node.authority.name }}</a>
+        <span class="badge text-bg-light">Depth {{ node.authority.depth }}</span>
+    </div>
+    {% if node.children %}
+        <ul class="list-unstyled ms-3 mt-2 border-start ps-3 mb-0">
+            {% for child in node.children %}
+                {% include 'pki/_ca_tree_node.html' with node=child %}
+            {% endfor %}
+        </ul>
+    {% endif %}
+</li>

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en" data-bs-theme="{% if user.is_authenticated and user.profile.theme_mode == 'dark' %}dark{% else %}light{% endif %}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}PKI Workbench{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@latest/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<nav class="navbar navbar-expand-lg bg-body-tertiary border-bottom">
+    <div class="container">
+        <a class="navbar-brand fw-semibold" href="{% url 'home' %}">PKI Workbench</a>
+        <div class="d-flex gap-2 align-items-center">
+            {% if user.is_authenticated %}
+                <div class="dropdown" data-profile-nav-dropdown>
+                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        Certificate Profiles
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end p-2" style="min-width: 20rem;">
+                        <input
+                            type="search"
+                            class="form-control form-control-sm mb-2"
+                            placeholder="Search profiles..."
+                            aria-label="Search certificate profiles"
+                            data-profile-nav-search
+                            autocomplete="off"
+                        >
+                        <div class="list-group list-group-flush" style="max-height: 16rem; overflow: auto;" data-profile-nav-list>
+                            {% for profile in editable_profiles|default:user.pki_certificate_profiles.all %}
+                                <a
+                                    href="{% url 'pki-profile-edit' profile.id %}{% if ca %}?ca_id={{ ca.id }}{% elif certificate and certificate.issued_by %}?ca_id={{ certificate.issued_by.id }}{% endif %}"
+                                    class="list-group-item list-group-item-action py-1"
+                                    data-profile-nav-item
+                                >
+                                    <div class="fw-semibold">{{ profile.name }}</div>
+                                    <small class="text-body-secondary">
+                                        {{ profile.key_algorithm|upper }}
+                                        {% if profile.key_algorithm != 'rsa' %} · {{ profile.curve_name }}{% endif %}
+                                        · {{ profile.days_valid }} days
+                                    </small>
+                                </a>
+                            {% empty %}
+                                <div class="small text-body-secondary px-1 py-1">No certificate profiles created yet.</div>
+                            {% endfor %}
+                            <div class="small text-body-secondary px-1 py-1 d-none" data-profile-nav-empty>No matching certificate profile.</div>
+                        </div>
+                    </div>
+                </div>
+                {% if user.pki_certificate_authorities.first %}
+                    <div class="dropdown" data-ca-nav-dropdown>
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            CA Workbench
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end p-2" style="min-width: 18rem;">
+                            <input
+                                type="search"
+                                class="form-control form-control-sm mb-2"
+                                placeholder="Search CAs..."
+                                aria-label="Search certificate authorities"
+                                data-ca-nav-search
+                                autocomplete="off"
+                            >
+                            <div class="list-group list-group-flush" style="max-height: 16rem; overflow: auto;" data-ca-nav-list>
+                                {% for authority in all_cas|default:user.pki_certificate_authorities.all %}
+                                    <a
+                                        href="{% url 'pki-ca-workbench' authority.id %}"
+                                        class="list-group-item list-group-item-action py-1 {% if ca and authority.id == ca.id %}active{% elif certificate and authority.id == certificate.issued_by.id %}active{% endif %}"
+                                        data-ca-nav-item
+                                    >
+                                        <div class="fw-semibold">{{ authority.name }}</div>
+                                        <small class="{% if ca and authority.id == ca.id %}text-white-50{% elif certificate and authority.id == certificate.issued_by.id %}text-white-50{% else %}text-body-secondary{% endif %}">
+                                            {% if authority.is_root %}Root{% else %}Depth {{ authority.depth }}{% endif %}
+                                        </small>
+                                    </a>
+                                {% endfor %}
+                                <div class="small text-body-secondary px-1 py-1 d-none" data-ca-nav-empty>No matching certificate authority.</div>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+                <a class="btn btn-outline-secondary btn-sm" href="{% url 'pki-create-root-ca' %}">Create Root CA</a>
+                <a class="btn btn-outline-secondary btn-sm" href="{% url 'profile' %}">Profile</a>
+                <form method="post" action="{% url 'logout' %}" class="m-0">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-primary btn-sm">Logout</button>
+                </form>
+            {% else %}
+                <a class="btn btn-primary btn-sm" href="{% url 'login' %}">Login</a>
+            {% endif %}
+        </div>
+    </div>
+</nav>
+
+<main class="container py-4">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags|default:'info' }}" role="alert">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+    {% block content %}{% endblock %}
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@latest/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('[data-ca-nav-dropdown]').forEach((dropdown) => {
+            const searchField = dropdown.querySelector('[data-ca-nav-search]');
+            const items = Array.from(dropdown.querySelectorAll('[data-ca-nav-item]'));
+            const emptyState = dropdown.querySelector('[data-ca-nav-empty]');
+            const toggleButton = dropdown.querySelector('[data-bs-toggle="dropdown"]');
+
+            if (!searchField || items.length === 0) {
+                return;
+            }
+
+            const filterItems = () => {
+                const query = searchField.value.trim().toLowerCase();
+                let visibleCount = 0;
+
+                items.forEach((item) => {
+                    const isVisible = item.textContent.toLowerCase().includes(query);
+                    item.classList.toggle('d-none', !isVisible);
+                    if (isVisible) {
+                        visibleCount += 1;
+                    }
+                });
+
+                if (emptyState) {
+                    emptyState.classList.toggle('d-none', visibleCount > 0);
+                }
+            };
+
+            searchField.addEventListener('input', filterItems);
+            toggleButton?.addEventListener('shown.bs.dropdown', () => {
+                searchField.value = '';
+                filterItems();
+                searchField.focus();
+            });
+        });
+
+        document.querySelectorAll('[data-profile-nav-dropdown]').forEach((dropdown) => {
+            const searchField = dropdown.querySelector('[data-profile-nav-search]');
+            const items = Array.from(dropdown.querySelectorAll('[data-profile-nav-item]'));
+            const emptyState = dropdown.querySelector('[data-profile-nav-empty]');
+            const toggleButton = dropdown.querySelector('[data-bs-toggle="dropdown"]');
+
+            if (!searchField || items.length === 0) {
+                return;
+            }
+
+            const filterItems = () => {
+                const query = searchField.value.trim().toLowerCase();
+                let visibleCount = 0;
+
+                items.forEach((item) => {
+                    const isVisible = item.textContent.toLowerCase().includes(query);
+                    item.classList.toggle('d-none', !isVisible);
+                    if (isVisible) {
+                        visibleCount += 1;
+                    }
+                });
+
+                if (emptyState) {
+                    emptyState.classList.toggle('d-none', visibleCount > 0);
+                }
+            };
+
+            searchField.addEventListener('input', filterItems);
+            toggleButton?.addEventListener('shown.bs.dropdown', () => {
+                searchField.value = '';
+                filterItems();
+                searchField.focus();
+            });
+        });
+    });
+</script>
+</body>
+</html>

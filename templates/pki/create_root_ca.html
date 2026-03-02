@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+
+{% block title %}Create Root CA · PKI Workbench{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-xl-10">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h1 class="h3 mb-0">Create Root Certificate Authority</h1>
+                <p class="text-body-secondary mb-0">Generate a root key/certificate pair and establish your trust chain depth.</p>
+            </div>
+        </div>
+
+        <form method="post" class="card shadow-sm border-0">
+            {% csrf_token %}
+            <div class="card-body p-4">
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                {% endif %}
+
+                <h2 class="h6 text-uppercase text-body-secondary mb-3">Authority Settings</h2>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label" for="{{ form.name.id_for_label }}">Authority name</label>
+                        {{ form.name }}
+                        <div class="text-danger small">{{ form.name.errors }}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="{{ form.certification_depth.id_for_label }}">Certification depth</label>
+                        {{ form.certification_depth }}
+                        <div class="form-text">Max chain length from root to leaf.</div>
+                        <div class="text-danger small">{{ form.certification_depth.errors }}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="{{ form.days_valid.id_for_label }}">Valid days</label>
+                        {{ form.days_valid }}
+                        <div class="text-danger small">{{ form.days_valid.errors }}</div>
+                    </div>
+                </div>
+
+                <h2 class="h6 text-uppercase text-body-secondary mb-3">Key Settings</h2>
+                <div class="row g-3 mb-4" data-key-config-container>
+                    <div class="col-md-4">
+                        <label class="form-label" for="{{ form.key_algorithm.id_for_label }}">Algorithm</label>
+                        {{ form.key_algorithm }}
+                        <div class="text-danger small">{{ form.key_algorithm.errors }}</div>
+                    </div>
+                    <div class="col-md-4" data-curve-field>
+                        <label class="form-label" for="{{ form.curve_name.id_for_label }}">Curve</label>
+                        {{ form.curve_name }}
+                        <div class="text-danger small">{{ form.curve_name.errors }}</div>
+                    </div>
+                    <div class="col-md-2" data-rsa-field>
+                        <label class="form-label" for="{{ form.key_size.id_for_label }}">RSA key size</label>
+                        {{ form.key_size }}
+                        <div class="text-danger small">{{ form.key_size.errors }}</div>
+                    </div>
+                    <div class="col-md-2" data-rsa-field>
+                        <label class="form-label" for="{{ form.public_exponent.id_for_label }}">Exponent</label>
+                        {{ form.public_exponent }}
+                        <div class="text-danger small">{{ form.public_exponent.errors }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="{{ form.passphrase.id_for_label }}">Key passphrase (optional)</label>
+                        {{ form.passphrase }}
+                        <div class="text-danger small">{{ form.passphrase.errors }}</div>
+                    </div>
+                </div>
+
+                <h2 class="h6 text-uppercase text-body-secondary mb-3">Subject</h2>
+                <div class="row g-3">
+                    <div class="col-md-2">
+                        <label class="form-label" for="{{ form.country_name.id_for_label }}">Country</label>
+                        {{ form.country_name }}
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label" for="{{ form.state_or_province_name.id_for_label }}">State / Province</label>
+                        {{ form.state_or_province_name }}
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label" for="{{ form.locality_name.id_for_label }}">Locality</label>
+                        {{ form.locality_name }}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="{{ form.organization_name.id_for_label }}">Organization</label>
+                        {{ form.organization_name }}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="{{ form.common_name.id_for_label }}">Common name</label>
+                        {{ form.common_name }}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="{{ form.email_address.id_for_label }}">Email (optional)</label>
+                        {{ form.email_address }}
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-body border-0 p-4 pt-0 d-flex gap-2 justify-content-end">
+                <a href="{% url 'home' %}" class="btn btn-outline-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Create Root CA</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

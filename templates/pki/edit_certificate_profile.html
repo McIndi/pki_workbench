@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Edit {{ profile.name }} · Certificate Profile{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0">Edit Certificate Profile</h1>
+        <p class="text-body-secondary mb-0">{{ profile.name }}</p>
+    </div>
+    {% if ca_id %}
+        <a href="{% url 'pki-ca-workbench' ca_id %}" class="btn btn-outline-secondary">Back to CA Workbench</a>
+    {% endif %}
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <form method="post" class="row g-3" data-key-config-container>
+            {% csrf_token %}
+            <input type="hidden" name="ca_id" value="{{ ca_id }}">
+            {% if form.non_field_errors %}
+                <div class="col-12 alert alert-danger mb-0">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <div class="col-md-6"><label class="form-label">Profile name</label>{{ form.name }}</div>
+            <div class="col-md-6"><label class="form-label">Description</label>{{ form.description }}</div>
+            <div class="col-md-3"><label class="form-label">Valid days</label>{{ form.days_valid }}</div>
+            <div class="col-md-3"><label class="form-label">Algorithm</label>{{ form.key_algorithm }}</div>
+            <div class="col-md-3" data-curve-field><label class="form-label">Curve</label>{{ form.curve_name }}</div>
+            <div class="col-md-3" data-rsa-field><label class="form-label">RSA key size</label>{{ form.key_size }}</div>
+            <div class="col-md-3" data-rsa-field><label class="form-label">Public exponent</label>{{ form.public_exponent }}</div>
+            <div class="col-md-3 form-check">{{ form.is_ca }} <label class="form-check-label" for="{{ form.is_ca.id_for_label }}">CA Certificate</label></div>
+            <div class="col-md-3"><label class="form-label">Path length (for CA)</label>{{ form.path_length }}</div>
+
+            <div class="col-12 mt-2">
+                <h3 class="h6 text-uppercase text-body-secondary mb-2">Subject Constraints (optional)</h3>
+            </div>
+            <div class="col-md-2"><label class="form-label">Country</label>{{ form.country_name }}</div>
+            <div class="col-md-5"><label class="form-label">State / Province</label>{{ form.state_or_province_name }}</div>
+            <div class="col-md-5"><label class="form-label">Locality</label>{{ form.locality_name }}</div>
+            <div class="col-md-4"><label class="form-label">Organization</label>{{ form.organization_name }}</div>
+            <div class="col-md-4"><label class="form-label">Org unit</label>{{ form.organizational_unit_name }}</div>
+            <div class="col-md-4"><label class="form-label">Common name</label>{{ form.common_name }}</div>
+            <div class="col-md-6"><label class="form-label">Email</label>{{ form.email_address }}</div>
+
+            <div class="col-12 mt-2">
+                <h3 class="h6 text-uppercase text-body-secondary mb-2">Key Usage</h3>
+            </div>
+            <div class="col-md-2 form-check">{{ form.ku_digital_signature }} <label class="form-check-label" for="{{ form.ku_digital_signature.id_for_label }}">Digital Signature</label></div>
+            <div class="col-md-2 form-check">{{ form.ku_content_commitment }} <label class="form-check-label" for="{{ form.ku_content_commitment.id_for_label }}">Content Commitment</label></div>
+            <div class="col-md-2 form-check">{{ form.ku_key_encipherment }} <label class="form-check-label" for="{{ form.ku_key_encipherment.id_for_label }}">Key Encipherment</label></div>
+            <div class="col-md-2 form-check">{{ form.ku_data_encipherment }} <label class="form-check-label" for="{{ form.ku_data_encipherment.id_for_label }}">Data Encipherment</label></div>
+            <div class="col-md-2 form-check">{{ form.ku_key_agreement }} <label class="form-check-label" for="{{ form.ku_key_agreement.id_for_label }}">Key Agreement</label></div>
+            <div class="col-md-2 form-check">{{ form.ku_key_cert_sign }} <label class="form-check-label" for="{{ form.ku_key_cert_sign.id_for_label }}">Key Cert Sign</label></div>
+            <div class="col-md-2 form-check">{{ form.ku_crl_sign }} <label class="form-check-label" for="{{ form.ku_crl_sign.id_for_label }}">CRL Sign</label></div>
+            <div class="col-md-2 form-check">{{ form.ku_encipher_only }} <label class="form-check-label" for="{{ form.ku_encipher_only.id_for_label }}">Encipher Only</label></div>
+            <div class="col-md-2 form-check">{{ form.ku_decipher_only }} <label class="form-check-label" for="{{ form.ku_decipher_only.id_for_label }}">Decipher Only</label></div>
+            <div class="col-md-2 form-check">{{ form.ku_critical }} <label class="form-check-label" for="{{ form.ku_critical.id_for_label }}">Critical</label></div>
+
+            <div class="col-12 mt-2">
+                <h3 class="h6 text-uppercase text-body-secondary mb-2">Extended Key Usage</h3>
+            </div>
+            <div class="col-md-2 form-check">{{ form.eku_server_auth }} <label class="form-check-label" for="{{ form.eku_server_auth.id_for_label }}">Server Auth</label></div>
+            <div class="col-md-2 form-check">{{ form.eku_client_auth }} <label class="form-check-label" for="{{ form.eku_client_auth.id_for_label }}">Client Auth</label></div>
+            <div class="col-md-2 form-check">{{ form.eku_code_signing }} <label class="form-check-label" for="{{ form.eku_code_signing.id_for_label }}">Code Signing</label></div>
+            <div class="col-md-2 form-check">{{ form.eku_email_protection }} <label class="form-check-label" for="{{ form.eku_email_protection.id_for_label }}">Email Protection</label></div>
+            <div class="col-md-2 form-check">{{ form.eku_time_stamping }} <label class="form-check-label" for="{{ form.eku_time_stamping.id_for_label }}">Time Stamping</label></div>
+            <div class="col-md-2 form-check">{{ form.eku_ocsp_signing }} <label class="form-check-label" for="{{ form.eku_ocsp_signing.id_for_label }}">OCSP Signing</label></div>
+
+            <div class="col-12 d-flex justify-content-end gap-2">
+                {% if ca_id %}
+                    <a href="{% url 'pki-ca-workbench' ca_id %}" class="btn btn-outline-secondary">Cancel</a>
+                {% endif %}
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script type="module" src="{% static 'pki/workbench.js' %}"></script>
+{% endblock %}

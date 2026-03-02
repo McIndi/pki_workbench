@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+
+{% block title %}Logged Out · PKI Workbench{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="card shadow-sm text-center">
+            <div class="card-body p-4">
+                <h1 class="h4">You are logged out</h1>
+                <p class="text-body-secondary">Your session has been ended successfully.</p>
+                <a href="{% url 'login' %}" class="btn btn-primary">Sign in again</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
