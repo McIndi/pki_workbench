@@ -225,6 +225,68 @@ class IssueCertificateForm(BasePKIForm):
         return payload
 
 
+class UnifiedIssueForm(IssueCertificateForm):
+    SOURCE_MODE_CHOICES = [
+        ('generate', 'Generate key + certificate'),
+        ('csr', 'Sign pasted CSR'),
+    ]
+
+    source_mode = forms.ChoiceField(choices=SOURCE_MODE_CHOICES, initial='generate')
+    create_certificate_authority = forms.BooleanField(required=False, initial=False)
+    csr_pem = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 8}), help_text='PEM-encoded CSR')
+    parent_key_passphrase = forms.CharField(required=False, widget=forms.PasswordInput(render_value=False))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field_name in [
+            'key_algorithm',
+            'country_name',
+            'state_or_province_name',
+            'locality_name',
+            'organization_name',
+            'common_name',
+        ]:
+            self.fields[field_name].required = False
+
+    def clean(self):
+        cleaned = forms.Form.clean(self)
+        source_mode = cleaned.get('source_mode')
+        create_ca = cleaned.get('create_certificate_authority', False)
+
+        if source_mode == 'csr':
+            if not (cleaned.get('csr_pem') or '').strip():
+                self.add_error('csr_pem', 'CSR PEM is required when signing an existing CSR.')
+            if create_ca:
+                self.add_error(
+                    'create_certificate_authority',
+                    'Create Certificate Authority is only supported when generating a new key and certificate.',
+                )
+            return cleaned
+
+        for field_name, label in [
+            ('key_algorithm', 'Algorithm'),
+            ('country_name', 'Country'),
+            ('state_or_province_name', 'State / Province'),
+            ('locality_name', 'Locality'),
+            ('organization_name', 'Organization'),
+            ('common_name', 'Common name'),
+        ]:
+            if not cleaned.get(field_name):
+                self.add_error(field_name, f'{label} is required when generating a new certificate.')
+
+        algorithm = cleaned.get('key_algorithm')
+        curve_name = cleaned.get('curve_name')
+
+        if algorithm == PrivateKey.Algorithm.RSA and not cleaned.get('key_size'):
+            self.add_error('key_size', 'Key size is required for RSA.')
+        if algorithm == PrivateKey.Algorithm.EC and not curve_name:
+            self.add_error('curve_name', 'Curve is required for EC keys.')
+        if algorithm == PrivateKey.Algorithm.EDDSA and curve_name not in {'ed25519', 'ed448'}:
+            self.add_error('curve_name', 'Choose ed25519 or ed448 for EdDSA keys.')
+
+        return cleaned
+
+
 class CertificateProfileForm(BasePKIForm, forms.ModelForm):
     key_algorithm = forms.ChoiceField(choices=KEY_ALGORITHM_CHOICES, initial=PrivateKey.Algorithm.RSA)
     curve_name = forms.ChoiceField(choices=ALL_CURVE_CHOICES, required=False, initial='secp256r1')

@@ -9,7 +9,6 @@
         <h1 class="h3 mb-0">{{ ca.name }}</h1>
         <p class="text-body-secondary mb-0">CA Workbench · Depth {{ ca.depth }} of {{ ca.certification_depth }}</p>
     </div>
-    <a href="{% url 'pki-create-root-ca' %}" class="btn btn-outline-primary">Create Another Root CA</a>
 </div>
 
 <div class="row g-3 mb-4">
@@ -59,17 +58,86 @@
     </div>
 </div>
 
+<div class="row g-3 mb-4">
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-body border-0 d-flex justify-content-between align-items-center">
+                <h2 class="h6 text-uppercase text-body-secondary mb-0">Child Certificate Authorities</h2>
+                <button
+                    class="btn btn-sm btn-outline-secondary"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#children-cas-panel"
+                    aria-expanded="true"
+                    aria-controls="children-cas-panel"
+                >
+                    Show/Hide
+                </button>
+            </div>
+            <div class="collapse hide" id="children-cas-panel">
+                <div class="card-body">
+                    {% if children %}
+                        <ul class="list-group list-group-flush">
+                            {% for child in children %}
+                                <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                                    <a href="{% url 'pki-ca-workbench' child.id %}" class="text-decoration-none">{{ child.name }}</a>
+                                    <span class="badge text-bg-light">Depth {{ child.depth }}</span>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-body-secondary mb-0">No child CAs yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-body border-0 d-flex justify-content-between align-items-center">
+                <h2 class="h6 text-uppercase text-body-secondary mb-0">Recently Issued Certificates</h2>
+                <button
+                    class="btn btn-sm btn-outline-secondary"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#issued-certificates-panel"
+                    aria-expanded="true"
+                    aria-controls="issued-certificates-panel"
+                >
+                    Show/Hide
+                </button>
+            </div>
+            <div class="collapse hide" id="issued-certificates-panel">
+                <div class="card-body">
+                    {% if issued_certificates %}
+                        <ul class="list-group list-group-flush">
+                            {% for cert in issued_certificates|slice:":10" %}
+                                <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <div class="fw-medium"><a class="text-decoration-none" href="{% url 'pki-issued-certificate-detail' cert.id %}">{{ cert.name }}</a></div>
+                                        <div class="small text-body-secondary">Serial {{ cert.serial_number }}</div>
+                                    </div>
+                                    <span class="badge text-bg-light">{% if cert.private_key %}{{ cert.private_key.algorithm|upper }}{% else %}CSR{% endif %}</span>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-body-secondary mb-0">No certificates issued by this CA yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="card border-0 shadow-sm" data-workbench-root>
     <div class="card-header bg-body-tertiary border-0">
         <ul class="nav nav-tabs card-header-tabs" id="workbenchTabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link {% if active_tab == 'issue' %}active{% endif %}" id="issue-tab" data-bs-toggle="tab" data-bs-target="#issue-pane" type="button" role="tab">Issue Certificate</button>
+                <button class="nav-link {% if active_tab == 'unified' %}active{% endif %}" id="unified-tab" data-bs-toggle="tab" data-bs-target="#unified-pane" type="button" role="tab">Issue / Sign</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link {% if active_tab == 'intermediate' %}active{% endif %}" id="intermediate-tab" data-bs-toggle="tab" data-bs-target="#intermediate-pane" type="button" role="tab">Create Intermediate CA</button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link {% if active_tab == 'sign-csr' %}active{% endif %}" id="sign-csr-tab" data-bs-toggle="tab" data-bs-target="#sign-csr-pane" type="button" role="tab">Sign CSR</button>
+                <button class="nav-link {% if active_tab == 'manage' %}active{% endif %}" id="manage-tab" data-bs-toggle="tab" data-bs-target="#manage-pane" type="button" role="tab">Manage & Delete</button>
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link {% if active_tab == 'profile' %}active{% endif %}" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profile-pane" type="button" role="tab">Create Certificate Profile</button>
@@ -78,139 +146,168 @@
     </div>
     <div class="card-body">
         <div class="tab-content">
-            <div class="tab-pane fade {% if active_tab == 'issue' %}show active{% endif %}" id="issue-pane" role="tabpanel">
+            <div class="tab-pane fade {% if active_tab == 'unified' %}show active{% endif %}" id="unified-pane" role="tabpanel">
                 <form method="post" class="row g-3" data-key-config-container>
                     {% csrf_token %}
-                    <input type="hidden" name="action" value="issue_certificate">
-                    {% if issue_form.non_field_errors %}
-                        <div class="col-12 alert alert-danger mb-0">{{ issue_form.non_field_errors }}</div>
+                    <input type="hidden" name="action" value="unified_issue">
+                    {% if unified_form.non_field_errors %}
+                        <div class="col-12 alert alert-danger mb-0">{{ unified_form.non_field_errors }}</div>
                     {% endif %}
 
-                    <div class="col-md-4"><label class="form-label">Name</label>{{ issue_form.name }}</div>
-                    <div class="col-md-4" data-profile-bound><label class="form-label">Valid days</label>{{ issue_form.days_valid }}</div>
-                        <div class="col-md-4" data-profile-bound><label class="form-label">Algorithm</label>{{ issue_form.key_algorithm }}</div>
-                    <div class="col-md-6"><label class="form-label">Certificate profile</label>{{ issue_form.certificate_profile }}</div>
+                    <div class="col-md-4"><label class="form-label">Certificate profile</label>{{ unified_form.certificate_profile }}</div>
+                    <div class="col-md-4"><label class="form-label">Mode</label>{{ unified_form.source_mode }}</div>
+                    <div class="col-md-4"><label class="form-label">Name</label>{{ unified_form.name }}</div>
+                    <div class="col-md-4" data-profile-bound><label class="form-label">Valid days</label>{{ unified_form.days_valid }}</div>
+                    <div class="col-md-4" data-profile-bound data-mode-generated><label class="form-label">Algorithm</label>{{ unified_form.key_algorithm }}</div>
+                    <div class="col-md-4" data-mode-generated>
+                        <div class="form-check mt-4">
+                            {{ unified_form.create_certificate_authority }}
+                            <label class="form-check-label" for="{{ unified_form.create_certificate_authority.id_for_label }}">Create Certificate Authority</label>
+                        </div>
+                    </div>
 
-                        <div class="col-md-4" data-curve-field data-profile-bound><label class="form-label">Curve</label>{{ issue_form.curve_name }}</div>
-                        <div class="col-md-4" data-rsa-field data-profile-bound><label class="form-label">RSA key size</label>{{ issue_form.key_size }}</div>
-                        <div class="col-md-4" data-rsa-field data-profile-bound><label class="form-label">Exponent</label>{{ issue_form.public_exponent }}</div>
+                    <div class="col-12" data-mode-csr>
+                        <label class="form-label">CSR PEM</label>
+                        {{ unified_form.csr_pem }}
+                    </div>
 
-                    <div class="col-md-6"><label class="form-label">Issued key passphrase (optional)</label>{{ issue_form.passphrase }}</div>
-                    <div class="col-md-6"><label class="form-label">Issuer key passphrase (optional)</label>{{ issue_form.issuer_key_passphrase }}</div>
+                    <div class="col-md-4" data-curve-field data-profile-bound data-mode-generated><label class="form-label">Curve</label>{{ unified_form.curve_name }}</div>
+                    <div class="col-md-4" data-rsa-field data-profile-bound data-mode-generated><label class="form-label">RSA key size</label>{{ unified_form.key_size }}</div>
+                    <div class="col-md-4" data-rsa-field data-profile-bound data-mode-generated><label class="form-label">Exponent</label>{{ unified_form.public_exponent }}</div>
 
-                    <div class="col-md-12"><label class="form-label">SAN DNS names (optional)</label>{{ issue_form.san_dns_names }}</div>
+                    <div class="col-md-4" data-mode-generated><label class="form-label">Issued key passphrase (optional)</label>{{ unified_form.passphrase }}</div>
+                    <div class="col-md-4"><label class="form-label">Issuer key passphrase (optional)</label>{{ unified_form.issuer_key_passphrase }}</div>
+                    <div class="col-md-4" data-mode-generated data-create-ca-options><label class="form-label">Parent key passphrase (optional)</label>{{ unified_form.parent_key_passphrase }}</div>
 
-                    <div class="col-md-2" data-profile-bound><label class="form-label">Country</label>{{ issue_form.country_name }}</div>
-                    <div class="col-md-5" data-profile-bound><label class="form-label">State / Province</label>{{ issue_form.state_or_province_name }}</div>
-                    <div class="col-md-5" data-profile-bound><label class="form-label">Locality</label>{{ issue_form.locality_name }}</div>
-                    <div class="col-md-4" data-profile-bound><label class="form-label">Organization</label>{{ issue_form.organization_name }}</div>
-                    <div class="col-md-4" data-profile-bound><label class="form-label">Org unit</label>{{ issue_form.organizational_unit_name }}</div>
-                    <div class="col-md-4" data-profile-bound><label class="form-label">Common name</label>{{ issue_form.common_name }}</div>
-                    <div class="col-md-6" data-profile-bound><label class="form-label">Email</label>{{ issue_form.email_address }}</div>
+                    <div class="col-md-12" data-mode-generated><label class="form-label">SAN DNS names (optional)</label>{{ unified_form.san_dns_names }}</div>
+
+                    <div class="col-md-2" data-profile-bound data-mode-generated><label class="form-label">Country</label>{{ unified_form.country_name }}</div>
+                    <div class="col-md-5" data-profile-bound data-mode-generated><label class="form-label">State / Province</label>{{ unified_form.state_or_province_name }}</div>
+                    <div class="col-md-5" data-profile-bound data-mode-generated><label class="form-label">Locality</label>{{ unified_form.locality_name }}</div>
+                    <div class="col-md-4" data-profile-bound data-mode-generated><label class="form-label">Organization</label>{{ unified_form.organization_name }}</div>
+                    <div class="col-md-4" data-profile-bound data-mode-generated><label class="form-label">Org unit</label>{{ unified_form.organizational_unit_name }}</div>
+                    <div class="col-md-4" data-profile-bound data-mode-generated><label class="form-label">Common name</label>{{ unified_form.common_name }}</div>
+                    <div class="col-md-6" data-profile-bound data-mode-generated><label class="form-label">Email</label>{{ unified_form.email_address }}</div>
 
                     <div class="col-12"><hr class="my-2"></div>
                     <div class="col-12">
                         <h3 class="h6 text-uppercase text-body-secondary mb-2">Key Usage</h3>
                     </div>
-                    <div class="col-md-2 form-check" data-profile-bound>{{ issue_form.ku_digital_signature }} <label class="form-check-label" for="{{ issue_form.ku_digital_signature.id_for_label }}">Digital Signature</label></div>
-                    <div class="col-md-2 form-check" data-profile-bound>{{ issue_form.ku_content_commitment }} <label class="form-check-label" for="{{ issue_form.ku_content_commitment.id_for_label }}">Content Commitment</label></div>
-                        <div class="col-md-2 form-check" data-profile-bound>{{ issue_form.ku_key_encipherment }} <label class="form-check-label" for="{{ issue_form.ku_key_encipherment.id_for_label }}">Key Encipherment</label></div>
-                        <div class="col-md-2 form-check" data-profile-bound>{{ issue_form.ku_data_encipherment }} <label class="form-check-label" for="{{ issue_form.ku_data_encipherment.id_for_label }}">Data Encipherment</label></div>
-                        <div class="col-md-2 form-check" data-profile-bound>{{ issue_form.ku_key_agreement }} <label class="form-check-label" for="{{ issue_form.ku_key_agreement.id_for_label }}">Key Agreement</label></div>
-                        <div class="col-md-2 form-check" data-profile-bound>{{ issue_form.ku_key_cert_sign }} <label class="form-check-label" for="{{ issue_form.ku_key_cert_sign.id_for_label }}">Key Cert Sign</label></div>
-                        <div class="col-md-2 form-check" data-profile-bound>{{ issue_form.ku_crl_sign }} <label class="form-check-label" for="{{ issue_form.ku_crl_sign.id_for_label }}">CRL Sign</label></div>
-                        <div class="col-md-2 form-check" data-profile-bound>{{ issue_form.ku_encipher_only }} <label class="form-check-label" for="{{ issue_form.ku_encipher_only.id_for_label }}">Encipher Only</label></div>
-                        <div class="col-md-2 form-check" data-profile-bound>{{ issue_form.ku_decipher_only }} <label class="form-check-label" for="{{ issue_form.ku_decipher_only.id_for_label }}">Decipher Only</label></div>
-                        <div class="col-md-2 form-check" data-profile-bound>{{ issue_form.ku_critical }} <label class="form-check-label" for="{{ issue_form.ku_critical.id_for_label }}">Critical</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.ku_digital_signature }} <label class="form-check-label" for="{{ unified_form.ku_digital_signature.id_for_label }}">Digital Signature</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.ku_content_commitment }} <label class="form-check-label" for="{{ unified_form.ku_content_commitment.id_for_label }}">Content Commitment</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.ku_key_encipherment }} <label class="form-check-label" for="{{ unified_form.ku_key_encipherment.id_for_label }}">Key Encipherment</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.ku_data_encipherment }} <label class="form-check-label" for="{{ unified_form.ku_data_encipherment.id_for_label }}">Data Encipherment</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.ku_key_agreement }} <label class="form-check-label" for="{{ unified_form.ku_key_agreement.id_for_label }}">Key Agreement</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.ku_key_cert_sign }} <label class="form-check-label" for="{{ unified_form.ku_key_cert_sign.id_for_label }}">Key Cert Sign</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.ku_crl_sign }} <label class="form-check-label" for="{{ unified_form.ku_crl_sign.id_for_label }}">CRL Sign</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.ku_encipher_only }} <label class="form-check-label" for="{{ unified_form.ku_encipher_only.id_for_label }}">Encipher Only</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.ku_decipher_only }} <label class="form-check-label" for="{{ unified_form.ku_decipher_only.id_for_label }}">Decipher Only</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.ku_critical }} <label class="form-check-label" for="{{ unified_form.ku_critical.id_for_label }}">Critical</label></div>
 
                     <div class="col-12 mt-2">
                         <h3 class="h6 text-uppercase text-body-secondary mb-2">Extended Key Usage</h3>
                     </div>
-                    <div class="col-md-2 form-check" data-profile-bound>{{ issue_form.eku_server_auth }} <label class="form-check-label" for="{{ issue_form.eku_server_auth.id_for_label }}">Server Auth</label></div>
-                    <div class="col-md-2 form-check" data-profile-bound>{{ issue_form.eku_client_auth }} <label class="form-check-label" for="{{ issue_form.eku_client_auth.id_for_label }}">Client Auth</label></div>
-                        <div class="col-md-2 form-check" data-profile-bound>{{ issue_form.eku_code_signing }} <label class="form-check-label" for="{{ issue_form.eku_code_signing.id_for_label }}">Code Signing</label></div>
-                        <div class="col-md-2 form-check" data-profile-bound>{{ issue_form.eku_email_protection }} <label class="form-check-label" for="{{ issue_form.eku_email_protection.id_for_label }}">Email Protection</label></div>
-                        <div class="col-md-2 form-check" data-profile-bound>{{ issue_form.eku_time_stamping }} <label class="form-check-label" for="{{ issue_form.eku_time_stamping.id_for_label }}">Time Stamping</label></div>
-                        <div class="col-md-2 form-check" data-profile-bound>{{ issue_form.eku_ocsp_signing }} <label class="form-check-label" for="{{ issue_form.eku_ocsp_signing.id_for_label }}">OCSP Signing</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.eku_server_auth }} <label class="form-check-label" for="{{ unified_form.eku_server_auth.id_for_label }}">Server Auth</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.eku_client_auth }} <label class="form-check-label" for="{{ unified_form.eku_client_auth.id_for_label }}">Client Auth</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.eku_code_signing }} <label class="form-check-label" for="{{ unified_form.eku_code_signing.id_for_label }}">Code Signing</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.eku_email_protection }} <label class="form-check-label" for="{{ unified_form.eku_email_protection.id_for_label }}">Email Protection</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.eku_time_stamping }} <label class="form-check-label" for="{{ unified_form.eku_time_stamping.id_for_label }}">Time Stamping</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.eku_ocsp_signing }} <label class="form-check-label" for="{{ unified_form.eku_ocsp_signing.id_for_label }}">OCSP Signing</label></div>
 
-                        <div class="col-12"><div class="form-text" data-profile-feedback></div></div>
+                    <div class="col-12"><div class="form-text" data-profile-feedback></div></div>
 
                     <div class="col-12 d-flex justify-content-end">
-                        <button type="submit" class="btn btn-primary">Issue Certificate</button>
+                        <button type="submit" class="btn btn-primary">Submit</button>
                     </div>
                 </form>
             </div>
 
-            <div class="tab-pane fade {% if active_tab == 'intermediate' %}show active{% endif %}" id="intermediate-pane" role="tabpanel">
-                <form method="post" class="row g-3" data-key-config-container>
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="create_intermediate">
-                    {% if intermediate_form.non_field_errors %}
-                        <div class="col-12 alert alert-danger mb-0">{{ intermediate_form.non_field_errors }}</div>
-                    {% endif %}
+            <div class="tab-pane fade {% if active_tab == 'manage' %}show active{% endif %}" id="manage-pane" role="tabpanel">
+                <div class="alert alert-warning">Deletion is permanent and may be blocked when a record is still referenced.</div>
 
-                    <div class="col-md-4"><label class="form-label">Name</label>{{ intermediate_form.name }}</div>
-                    <div class="col-md-4"><label class="form-label">Valid days</label>{{ intermediate_form.days_valid }}</div>
-                    <div class="col-md-4"><label class="form-label">Algorithm</label>{{ intermediate_form.key_algorithm }}</div>
+                <h3 class="h6 text-uppercase text-body-secondary mb-2">Certificates</h3>
+                <ul class="list-group list-group-flush mb-3">
+                    {% for cert in managed_certificates %}
+                        <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                            <div>
+                                <a class="text-decoration-none" href="{% url 'pki-issued-certificate-detail' cert.id %}">{{ cert.name }}</a>
+                                <div class="small text-body-secondary">Serial {{ cert.serial_number }}</div>
+                            </div>
+                            <form method="post" class="m-0" data-confirm-delete data-confirm-message="Delete certificate '{{ cert.name|escapejs }}'? This cannot be undone.">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete_certificate">
+                                <input type="hidden" name="certificate_id" value="{{ cert.id }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                        </li>
+                    {% empty %}
+                        <li class="list-group-item px-0 text-body-secondary">No certificates available.</li>
+                    {% endfor %}
+                </ul>
 
-                    <div class="col-md-4" data-curve-field><label class="form-label">Curve</label>{{ intermediate_form.curve_name }}</div>
-                    <div class="col-md-4" data-rsa-field><label class="form-label">RSA key size</label>{{ intermediate_form.key_size }}</div>
-                    <div class="col-md-4" data-rsa-field><label class="form-label">Exponent</label>{{ intermediate_form.public_exponent }}</div>
+                <h3 class="h6 text-uppercase text-body-secondary mb-2">Certificate Authorities</h3>
+                <ul class="list-group list-group-flush mb-3">
+                    {% for authority in all_cas %}
+                        <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                            <div>
+                                <a class="text-decoration-none" href="{% url 'pki-ca-workbench' authority.id %}">{{ authority.name }}</a>
+                                <div class="small text-body-secondary">{% if authority.is_root %}Root{% else %}Depth {{ authority.depth }}{% endif %}</div>
+                            </div>
+                            {% if authority.id == ca.id %}
+                                <button type="button" class="btn btn-sm btn-outline-secondary" disabled>Current</button>
+                            {% else %}
+                                <form method="post" class="m-0" data-confirm-delete data-confirm-message="Delete certificate authority '{{ authority.name|escapejs }}'? This cannot be undone.">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="delete_ca">
+                                    <input type="hidden" name="target_ca_id" value="{{ authority.id }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            {% endif %}
+                        </li>
+                    {% empty %}
+                        <li class="list-group-item px-0 text-body-secondary">No certificate authorities available.</li>
+                    {% endfor %}
+                </ul>
 
-                    <div class="col-md-6"><label class="form-label">Child key passphrase (optional)</label>{{ intermediate_form.passphrase }}</div>
-                    <div class="col-md-6"><label class="form-label">Parent key passphrase (optional)</label>{{ intermediate_form.parent_key_passphrase }}</div>
+                <h3 class="h6 text-uppercase text-body-secondary mb-2">Private Keys</h3>
+                <ul class="list-group list-group-flush mb-3">
+                    {% for key in managed_private_keys %}
+                        <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="fw-medium">{{ key.name }}</span>
+                                <div class="small text-body-secondary">{{ key.algorithm|upper }}</div>
+                            </div>
+                            <form method="post" class="m-0" data-confirm-delete data-confirm-message="Delete private key '{{ key.name|escapejs }}'? This cannot be undone.">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete_private_key">
+                                <input type="hidden" name="private_key_id" value="{{ key.id }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                        </li>
+                    {% empty %}
+                        <li class="list-group-item px-0 text-body-secondary">No private keys available.</li>
+                    {% endfor %}
+                </ul>
 
-                    <div class="col-md-2"><label class="form-label">Country</label>{{ intermediate_form.country_name }}</div>
-                    <div class="col-md-5"><label class="form-label">State / Province</label>{{ intermediate_form.state_or_province_name }}</div>
-                    <div class="col-md-5"><label class="form-label">Locality</label>{{ intermediate_form.locality_name }}</div>
-                    <div class="col-md-6"><label class="form-label">Organization</label>{{ intermediate_form.organization_name }}</div>
-                    <div class="col-md-6"><label class="form-label">Common name</label>{{ intermediate_form.common_name }}</div>
-                    <div class="col-md-6"><label class="form-label">Email</label>{{ intermediate_form.email_address }}</div>
-
-                    <div class="col-12 d-flex justify-content-end">
-                        <button type="submit" class="btn btn-primary">Create Intermediate CA</button>
-                    </div>
-                </form>
-            </div>
-
-            <div class="tab-pane fade {% if active_tab == 'sign-csr' %}show active{% endif %}" id="sign-csr-pane" role="tabpanel">
-                <form method="post" class="row g-3">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="sign_csr">
-                    {% if sign_csr_form.non_field_errors %}
-                        <div class="col-12 alert alert-danger mb-0">{{ sign_csr_form.non_field_errors }}</div>
-                    {% endif %}
-
-                    <div class="col-md-6"><label class="form-label">Certificate name</label>{{ sign_csr_form.name }}</div>
-                    <div class="col-md-3"><label class="form-label">Valid days</label>{{ sign_csr_form.days_valid }}</div>
-                    <div class="col-md-3"><label class="form-label">Certificate profile</label>{{ sign_csr_form.certificate_profile }}</div>
-                    <div class="col-md-6"><label class="form-label">Issuer key passphrase (optional)</label>{{ sign_csr_form.issuer_key_passphrase }}</div>
-                    <div class="col-12"><label class="form-label">CSR PEM</label>{{ sign_csr_form.csr_pem }}</div>
-
-                    <div class="col-12 mt-2">
-                        <h3 class="h6 text-uppercase text-body-secondary mb-2">Key Usage</h3>
-                    </div>
-                    <div class="col-md-2 form-check">{{ sign_csr_form.ku_digital_signature }} <label class="form-check-label" for="{{ sign_csr_form.ku_digital_signature.id_for_label }}">Digital Signature</label></div>
-                    <div class="col-md-2 form-check">{{ sign_csr_form.ku_content_commitment }} <label class="form-check-label" for="{{ sign_csr_form.ku_content_commitment.id_for_label }}">Content Commitment</label></div>
-                    <div class="col-md-2 form-check">{{ sign_csr_form.ku_key_encipherment }} <label class="form-check-label" for="{{ sign_csr_form.ku_key_encipherment.id_for_label }}">Key Encipherment</label></div>
-                    <div class="col-md-2 form-check">{{ sign_csr_form.ku_data_encipherment }} <label class="form-check-label" for="{{ sign_csr_form.ku_data_encipherment.id_for_label }}">Data Encipherment</label></div>
-                    <div class="col-md-2 form-check">{{ sign_csr_form.ku_key_agreement }} <label class="form-check-label" for="{{ sign_csr_form.ku_key_agreement.id_for_label }}">Key Agreement</label></div>
-                    <div class="col-md-2 form-check">{{ sign_csr_form.ku_critical }} <label class="form-check-label" for="{{ sign_csr_form.ku_critical.id_for_label }}">Critical</label></div>
-
-                    <div class="col-12 mt-2">
-                        <h3 class="h6 text-uppercase text-body-secondary mb-2">Extended Key Usage</h3>
-                    </div>
-                    <div class="col-md-2 form-check">{{ sign_csr_form.eku_server_auth }} <label class="form-check-label" for="{{ sign_csr_form.eku_server_auth.id_for_label }}">Server Auth</label></div>
-                    <div class="col-md-2 form-check">{{ sign_csr_form.eku_client_auth }} <label class="form-check-label" for="{{ sign_csr_form.eku_client_auth.id_for_label }}">Client Auth</label></div>
-                    <div class="col-md-2 form-check">{{ sign_csr_form.eku_code_signing }} <label class="form-check-label" for="{{ sign_csr_form.eku_code_signing.id_for_label }}">Code Signing</label></div>
-                    <div class="col-md-2 form-check">{{ sign_csr_form.eku_email_protection }} <label class="form-check-label" for="{{ sign_csr_form.eku_email_protection.id_for_label }}">Email Protection</label></div>
-                    <div class="col-md-2 form-check">{{ sign_csr_form.eku_time_stamping }} <label class="form-check-label" for="{{ sign_csr_form.eku_time_stamping.id_for_label }}">Time Stamping</label></div>
-                    <div class="col-md-2 form-check">{{ sign_csr_form.eku_ocsp_signing }} <label class="form-check-label" for="{{ sign_csr_form.eku_ocsp_signing.id_for_label }}">OCSP Signing</label></div>
-
-                    <div class="col-12 d-flex justify-content-end">
-                        <button type="submit" class="btn btn-primary">Sign CSR</button>
-                    </div>
-                </form>
+                <h3 class="h6 text-uppercase text-body-secondary mb-2">CSRs</h3>
+                <ul class="list-group list-group-flush">
+                    {% for csr in managed_csrs %}
+                        <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="fw-medium">{{ csr.name }}</span>
+                                <div class="small text-body-secondary">{% if csr.private_key %}Generated{% else %}Imported / External{% endif %}</div>
+                            </div>
+                            <form method="post" class="m-0" data-confirm-delete data-confirm-message="Delete CSR '{{ csr.name|escapejs }}'? This cannot be undone.">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete_csr">
+                                <input type="hidden" name="csr_id" value="{{ csr.id }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                        </li>
+                    {% empty %}
+                        <li class="list-group-item px-0 text-body-secondary">No CSRs available.</li>
+                    {% endfor %}
+                </ul>
             </div>
 
             <div class="tab-pane fade {% if active_tab == 'profile' %}show active{% endif %}" id="profile-pane" role="tabpanel">
@@ -271,50 +368,6 @@
                     </div>
                 </form>
 
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row g-3 mt-1">
-    <div class="col-lg-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body">
-                <h2 class="h6 text-uppercase text-body-secondary mb-3">Child Certificate Authorities</h2>
-                {% if children %}
-                    <ul class="list-group list-group-flush">
-                        {% for child in children %}
-                            <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
-                                <a href="{% url 'pki-ca-workbench' child.id %}" class="text-decoration-none">{{ child.name }}</a>
-                                <span class="badge text-bg-light">Depth {{ child.depth }}</span>
-                            </li>
-                        {% endfor %}
-                    </ul>
-                {% else %}
-                    <p class="text-body-secondary mb-0">No child CAs yet.</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body">
-                <h2 class="h6 text-uppercase text-body-secondary mb-3">Recently Issued Certificates</h2>
-                {% if issued_certificates %}
-                    <ul class="list-group list-group-flush">
-                        {% for cert in issued_certificates|slice:":10" %}
-                            <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
-                                <div>
-                                    <div class="fw-medium"><a class="text-decoration-none" href="{% url 'pki-issued-certificate-detail' cert.id %}">{{ cert.name }}</a></div>
-                                    <div class="small text-body-secondary">Serial {{ cert.serial_number }}</div>
-                                </div>
-                                <span class="badge text-bg-light">{% if cert.private_key %}{{ cert.private_key.algorithm|upper }}{% else %}CSR{% endif %}</span>
-                            </li>
-                        {% endfor %}
-                    </ul>
-                {% else %}
-                    <p class="text-body-secondary mb-0">No certificates issued by this CA yet.</p>
-                {% endif %}
             </div>
         </div>
     </div>

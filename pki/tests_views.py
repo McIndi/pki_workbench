@@ -199,6 +199,116 @@ class PKIViewsTests(TestCase):
         self.assertIsNone(certificate.private_key)
         self.assertIsNotNone(certificate.csr)
 
+    def test_workbench_unified_issue_action_generates_certificate(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Unified Issue Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+
+        response = self.client.post(
+            reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
+            data={
+                'action': 'unified_issue',
+                'unified-source_mode': 'generate',
+                'unified-certificate_profile': '',
+                'unified-name': 'Unified Issued Cert',
+                'unified-days_valid': 365,
+                'unified-key_algorithm': 'rsa',
+                'unified-curve_name': 'secp256r1',
+                'unified-key_size': 2048,
+                'unified-public_exponent': 65537,
+                'unified-passphrase': '',
+                'unified-issuer_key_passphrase': '',
+                'unified-parent_key_passphrase': '',
+                'unified-san_dns_names': 'unified.example.com',
+                'unified-country_name': 'US',
+                'unified-state_or_province_name': 'New York',
+                'unified-locality_name': 'New York',
+                'unified-organization_name': 'PKI Workbench',
+                'unified-organizational_unit_name': 'Security',
+                'unified-common_name': 'unified.example.com',
+                'unified-email_address': '',
+                'unified-ku_digital_signature': 'on',
+                'unified-ku_key_encipherment': 'on',
+                'unified-ku_critical': 'on',
+                'unified-eku_server_auth': 'on',
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(SignedCertificate.objects.filter(owner=self.user, name='Unified Issued Cert', issued_by=root).exists())
+
+    def test_workbench_unified_issue_action_signs_csr(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Unified CSR Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+        requester_key_pem = services.create_private_key(key_algorithm='rsa', key_size=2048)
+        requester_csr_pem = services.create_csr(
+            private_key_pem=requester_key_pem,
+            subject={
+                'country_name': 'US',
+                'state_or_province_name': 'New York',
+                'locality_name': 'New York',
+                'organization_name': 'PKI Workbench',
+                'common_name': 'unified-csr.example.com',
+            },
+        )
+
+        response = self.client.post(
+            reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
+            data={
+                'action': 'unified_issue',
+                'unified-source_mode': 'csr',
+                'unified-certificate_profile': '',
+                'unified-name': 'Unified CSR Signed',
+                'unified-csr_pem': requester_csr_pem.decode('utf-8'),
+                'unified-issuer_key_passphrase': '',
+                'unified-days_valid': 365,
+                'unified-ku_digital_signature': 'on',
+                'unified-ku_key_encipherment': 'on',
+                'unified-ku_critical': 'on',
+                'unified-eku_server_auth': 'on',
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        cert = SignedCertificate.objects.get(owner=self.user, name='Unified CSR Signed')
+        self.assertIsNone(cert.private_key)
+        self.assertIsNotNone(cert.csr)
+
+    def test_workbench_manage_delete_certificate_action(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Delete Cert Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+        issued = issue_signed_certificate(
+            owner=self.user,
+            issuer_authority=root,
+            name='Delete Me Cert',
+            subject={**self.subject, 'common_name': 'delete-me.example.com'},
+        )
+
+        response = self.client.post(
+            reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
+            data={
+                'action': 'delete_certificate',
+                'certificate_id': str(issued.pk),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(SignedCertificate.objects.filter(pk=issued.pk).exists())
+
     def test_issued_certificate_detail_and_downloads(self):
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
@@ -436,7 +546,7 @@ class PKIViewsTests(TestCase):
         self.assertIn('<option value="secp384r1"', html)
         self.assertIn('id="issue-profile-payload"', html)
         self.assertIn(f'"{profile.pk}"', html)
-        self.assertIn('name="issue-organizational_unit_name"', html)
+        self.assertIn('name="unified-organizational_unit_name"', html)
         self.assertIn('name="profile-organizational_unit_name"', html)
         self.assertIn('"organization_name": "Pinned Org"', html)
         self.assertIn('data-profile-bound', html)

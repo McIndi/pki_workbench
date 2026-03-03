@@ -202,6 +202,44 @@ function applySelectedProfile(container, profileData) {
   lockProfileBoundFields(container, true, lockedOptionalSubjectFields);
 }
 
+function updateUnifiedMode(container) {
+  const sourceModeField = getFieldBySuffix(container, 'source_mode');
+  if (!sourceModeField) {
+    return;
+  }
+
+  const createCaField = getFieldBySuffix(container, 'create_certificate_authority');
+  const generatedSections = container.querySelectorAll('[data-mode-generated]');
+  const csrSections = container.querySelectorAll('[data-mode-csr]');
+  const createCaSections = container.querySelectorAll('[data-create-ca-options]');
+
+  const isCsrMode = sourceModeField.value === 'csr';
+
+  generatedSections.forEach((section) => {
+    section.style.display = isCsrMode ? 'none' : '';
+  });
+
+  csrSections.forEach((section) => {
+    section.style.display = isCsrMode ? '' : 'none';
+  });
+
+  const showCreateCaOptions = !isCsrMode && createCaField && createCaField.checked;
+  createCaSections.forEach((section) => {
+    section.style.display = showCreateCaOptions ? '' : 'none';
+  });
+}
+
+function initDeleteConfirmations() {
+  document.querySelectorAll('form[data-confirm-delete]').forEach((form) => {
+    form.addEventListener('submit', (event) => {
+      const message = form.dataset.confirmMessage || 'Delete this item? This cannot be undone.';
+      if (!window.confirm(message)) {
+        event.preventDefault();
+      }
+    });
+  });
+}
+
 function initWorkbench() {
   const profileData = getProfilePayload();
 
@@ -219,7 +257,19 @@ function initWorkbench() {
       applySelectedProfile(container, profileData);
       profileSelect.addEventListener('change', () => applySelectedProfile(container, profileData));
     }
+
+    const sourceModeField = getFieldBySuffix(container, 'source_mode');
+    if (sourceModeField) {
+      updateUnifiedMode(container);
+      sourceModeField.addEventListener('change', () => updateUnifiedMode(container));
+      const createCaField = getFieldBySuffix(container, 'create_certificate_authority');
+      if (createCaField) {
+        createCaField.addEventListener('change', () => updateUnifiedMode(container));
+      }
+    }
   });
+
+  initDeleteConfirmations();
 }
 
 window.addEventListener('DOMContentLoaded', initWorkbench);
