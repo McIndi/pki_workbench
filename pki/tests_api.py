@@ -3,6 +3,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from . import services
 from .models import CertificateProfile, SignedCertificate
 from .workflows import create_root_certificate_authority, issue_signed_certificate
 
@@ -42,11 +43,13 @@ class PKIApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         paths = response.data.get('paths', {})
         self.assertIn('/api/cas/', paths)
+        self.assertIn('/api/cas/{id}/sign-csr/', paths)
         self.assertIn('/api/certificates/', paths)
         self.assertIn('/api/profiles/', paths)
         self.assertIn('/api/dashboard/', paths)
         self.assertIn('/api/workflows/root-cas/', paths)
         self.assertIn('/api/workflows/intermediate-cas/', paths)
+        self.assertIn('/api/workflows/import-ca/', paths)
         self.assertIn('/api/workflows/certificates/', paths)
         self.assertIn('/api/workflows/profiles/from-certificate/', paths)
 
@@ -127,3 +130,114 @@ class PKIApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(SignedCertificate.objects.filter(owner=self.user, name='Workflow API Cert').exists())
+
+    def test_api_root_includes_import_and_sign_csr_endpoints(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.get('/api/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('import_ca', response.data['workflows'])
+        self.assertIn('sign_csr_template', response.data['cas'])
+
+    def test_import_ca_workflow_endpoint(self):
+        self.client.force_authenticate(self.user)
+        private_key_pem = services.create_private_key(key_algorithm='rsa', key_size=2048)
+        certificate_pem = services.create_self_signed_ca(
+            private_key_pem=private_key_pem,
+            subject={
+                'country_name': 'US',
+                'state_or_province_name': 'New York',
+                'locality_name': 'New York',
+                'organization_name': 'PKI Workbench',
+                'common_name': 'Imported API Root',
+            },
+            days_valid=3650,
+            path_length=2,
+        )
+
+        response = self.client.post(
+            '/api/workflows/import-ca/',
+            {
+                'name': 'Imported API Root',
+                'certificate_pem': certificate_pem.decode('utf-8'),
+                'private_key_pem': private_key_pem.decode('utf-8'),
+                'key_passphrase': '',
+                'certification_depth': 3,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['name'], 'Imported API Root')
+
+    def test_sign_csr_action_on_ca_endpoint(self):
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='API Sign CSR Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+        requester_key_pem = services.create_private_key(key_algorithm='rsa', key_size=2048)
+        requester_csr_pem = services.create_csr(
+            private_key_pem=requester_key_pem,
+            subject={
+                'country_name': 'US',
+                'state_or_province_name': 'New York',
+                'locality_name': 'New York',
+                'organization_name': 'PKI Workbench',
+                'common_name': 'csr-api.example.com',
+            },
+        )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.post(
+            f'/api/cas/{root.id}/sign-csr/',
+            {
+                'name': 'CSR API Signed Cert',
+                'csr_pem': requester_csr_pem.decode('utf-8'),
+                'issuer_key_passphrase': '',
+                'days_valid': 365,
+                'ku_digital_signature': True,
+                'ku_key_encipherment': True,
+                'ku_critical': True,
+                'eku_server_auth': True,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['private_key_algorithm'], None)
+        certificate = SignedCertificate.objects.get(owner=self.user, name='CSR API Signed Cert')
+        self.assertIsNone(certificate.private_key)
+        self.assertIsNotNone(certificate.csr)
+
+    def test_sign_csr_action_is_owner_scoped(self):
+        root = create_root_certificate_authority(
+            owner=self.other_user,
+            name='Other Owner Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+        requester_key_pem = services.create_private_key(key_algorithm='rsa', key_size=2048)
+        requester_csr_pem = services.create_csr(
+            private_key_pem=requester_key_pem,
+            subject={
+                'country_name': 'US',
+                'state_or_province_name': 'New York',
+                'locality_name': 'New York',
+                'organization_name': 'PKI Workbench',
+                'common_name': 'unauthorized.example.com',
+            },
+        )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.post(
+            f'/api/cas/{root.id}/sign-csr/',
+            {
+                'name': 'Should Not Sign',
+                'csr_pem': requester_csr_pem.decode('utf-8'),
+                'days_valid': 365,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

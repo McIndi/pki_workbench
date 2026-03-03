@@ -493,6 +493,29 @@ def parse_certificate_info(certificate_pem: bytes) -> dict:
     }
 
 
+def parse_csr_info(csr_pem: bytes) -> dict:
+    csr = x509.load_pem_x509_csr(csr_pem)
+    subject = {
+        'country_name': _name_value(csr.subject, NameOID.COUNTRY_NAME),
+        'state_or_province_name': _name_value(csr.subject, NameOID.STATE_OR_PROVINCE_NAME),
+        'locality_name': _name_value(csr.subject, NameOID.LOCALITY_NAME),
+        'organization_name': _name_value(csr.subject, NameOID.ORGANIZATION_NAME),
+        'organizational_unit_name': _name_value(csr.subject, NameOID.ORGANIZATIONAL_UNIT_NAME),
+        'common_name': _name_value(csr.subject, NameOID.COMMON_NAME),
+        'email_address': _name_value(csr.subject, NameOID.EMAIL_ADDRESS),
+    }
+    return {
+        'subject': subject,
+    }
+
+
+def validate_ca_certificate(certificate_pem: bytes) -> None:
+    certificate = x509.load_pem_x509_certificate(certificate_pem)
+    basic_constraints = certificate.extensions.get_extension_for_class(x509.BasicConstraints).value
+    if not basic_constraints.ca:
+        raise ValueError('Provided certificate is not a CA certificate.')
+
+
 def _name_value(name: x509.Name, oid: x509.ObjectIdentifier) -> str | None:
     attrs = name.get_attributes_for_oid(oid)
     if not attrs:

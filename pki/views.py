@@ -10,12 +10,22 @@ from django.urls import reverse
 from django.utils.text import slugify
 from django.views import View
 
-from .forms import CertificateProfileForm, CreateProfileFromCertificateForm, IntermediateCAForm, IssueCertificateForm, RootCAForm
+from .forms import (
+	CertificateProfileForm,
+	CreateProfileFromCertificateForm,
+	ImportCAForm,
+	IntermediateCAForm,
+	IssueCertificateForm,
+	RootCAForm,
+	SignCSRForm,
+)
 from .models import CertificateAuthority, CertificateProfile, SignedCertificate
 from .workflows import (
 	create_certificate_profile_from_certificate,
 	create_intermediate_certificate_authority,
 	create_root_certificate_authority,
+	import_certificate_authority,
+	issue_signed_certificate_from_csr,
 	issue_signed_certificate,
 )
 
@@ -25,12 +35,38 @@ class RootCACreateView(LoginRequiredMixin, View):
 
 	def get(self, request: HttpRequest) -> HttpResponse:
 		form = RootCAForm()
-		return render(request, self.template_name, {'form': form})
+		import_form = ImportCAForm(owner=request.user)
+		return render(request, self.template_name, {'form': form, 'import_form': import_form})
 
 	def post(self, request: HttpRequest) -> HttpResponse:
+		action = request.POST.get('action', 'create_root')
 		form = RootCAForm(request.POST)
+		import_form = ImportCAForm(owner=request.user)
+
+		if action == 'import_ca':
+			import_form = ImportCAForm(request.POST, owner=request.user)
+			if not import_form.is_valid():
+				return render(request, self.template_name, {'form': form, 'import_form': import_form})
+
+			try:
+				imported_ca = import_certificate_authority(
+					owner=request.user,
+					name=import_form.cleaned_data['name'],
+					certificate_pem=import_form.cleaned_data['certificate_pem'],
+					private_key_pem=import_form.cleaned_data['private_key_pem'],
+					key_passphrase=import_form.cleaned_data.get('key_passphrase') or None,
+					parent_authority=import_form.cleaned_data.get('parent_ca'),
+					certification_depth=import_form.cleaned_data['certification_depth'],
+				)
+			except ValidationError as exc:
+				import_form.add_error(None, exc.message)
+				return render(request, self.template_name, {'form': form, 'import_form': import_form})
+
+			messages.success(request, f'Certificate authority "{imported_ca.name}" imported.')
+			return redirect('pki-ca-workbench', ca_id=imported_ca.id)
+
 		if not form.is_valid():
-			return render(request, self.template_name, {'form': form})
+			return render(request, self.template_name, {'form': form, 'import_form': import_form})
 
 		try:
 			root_ca = create_root_certificate_authority(
@@ -47,7 +83,7 @@ class RootCACreateView(LoginRequiredMixin, View):
 			)
 		except ValidationError as exc:
 			form.add_error(None, exc.message)
-			return render(request, self.template_name, {'form': form})
+			return render(request, self.template_name, {'form': form, 'import_form': import_form})
 
 		messages.success(request, f'Root certificate authority "{root_ca.name}" created.')
 		return redirect('pki-ca-workbench', ca_id=root_ca.id)
@@ -79,6 +115,7 @@ class CAWorkbenchView(LoginRequiredMixin, View):
 
 		intermediate_form = IntermediateCAForm(prefix='intermediate')
 		issue_form = IssueCertificateForm(prefix='issue', profile_queryset=self._profile_queryset(request))
+		sign_csr_form = SignCSRForm(prefix='sign-csr', profile_queryset=self._profile_queryset(request))
 		profile_form = CertificateProfileForm(prefix='profile')
 		active_tab = 'issue'
 
@@ -138,6 +175,32 @@ class CAWorkbenchView(LoginRequiredMixin, View):
 					messages.success(request, f'Certificate "{signed_certificate.name}" issued.')
 					return redirect('pki-ca-workbench', ca_id=ca.id)
 
+		elif action == 'sign_csr':
+			active_tab = 'sign-csr'
+			sign_csr_form = SignCSRForm(
+				request.POST,
+				prefix='sign-csr',
+				profile_queryset=self._profile_queryset(request),
+			)
+			if sign_csr_form.is_valid():
+				try:
+					signed_certificate = issue_signed_certificate_from_csr(
+						owner=request.user,
+						issuer_authority=ca,
+						name=sign_csr_form.cleaned_data['name'],
+						csr_pem=sign_csr_form.cleaned_data['csr_pem'],
+						certificate_profile=sign_csr_form.cleaned_data.get('certificate_profile'),
+						issuer_key_passphrase=sign_csr_form.cleaned_data.get('issuer_key_passphrase') or None,
+						days_valid=sign_csr_form.cleaned_data['days_valid'],
+						key_usage=sign_csr_form.key_usage_payload(),
+						extended_key_usages=sign_csr_form.extended_key_usage_payload(),
+					)
+				except ValidationError as exc:
+					sign_csr_form.add_error(None, exc.message)
+				else:
+					messages.success(request, f'CSR signed as certificate "{signed_certificate.name}".')
+					return redirect('pki-ca-workbench', ca_id=ca.id)
+
 		elif action == 'create_certificate_profile':
 			active_tab = 'profile'
 			profile_form = CertificateProfileForm(request.POST, prefix='profile')
@@ -156,6 +219,7 @@ class CAWorkbenchView(LoginRequiredMixin, View):
 			ca,
 			intermediate_form=intermediate_form,
 			issue_form=issue_form,
+			sign_csr_form=sign_csr_form,
 			profile_form=profile_form,
 			active_tab=active_tab,
 		)
@@ -167,6 +231,7 @@ class CAWorkbenchView(LoginRequiredMixin, View):
 		*,
 		intermediate_form: IntermediateCAForm | None = None,
 		issue_form: IssueCertificateForm | None = None,
+		sign_csr_form: SignCSRForm | None = None,
 		profile_form: CertificateProfileForm | None = None,
 		active_tab: str = 'issue',
 	) -> dict:
@@ -231,6 +296,10 @@ class CAWorkbenchView(LoginRequiredMixin, View):
 			'editable_profiles': editable_profiles,
 			'intermediate_form': intermediate_form or IntermediateCAForm(prefix='intermediate'),
 			'issue_form': resolved_issue_form,
+			'sign_csr_form': sign_csr_form or SignCSRForm(
+				prefix='sign-csr',
+				profile_queryset=CertificateProfile.objects.filter(owner__in=[None, ca.owner]).order_by('owner_id', 'name'),
+			),
 			'profile_form': profile_form or CertificateProfileForm(prefix='profile'),
 			'active_tab': active_tab,
 			'issue_profile_payload': issue_profile_payload,
@@ -399,6 +468,8 @@ class IssuedCertificateDownloadView(LoginRequiredMixin, View):
 			return response
 
 		if artifact == 'pair-zip':
+			if certificate.private_key is None:
+				raise Http404('Private key is not stored for this certificate.')
 			archive_bytes = io.BytesIO()
 			with zipfile.ZipFile(archive_bytes, mode='w', compression=zipfile.ZIP_DEFLATED) as archive:
 				archive.writestr(_filename_for_artifact(certificate, 'pubcert', 'pem'), certificate.certificate_pem)

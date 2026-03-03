@@ -8,12 +8,21 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .api_serializers import CertificateAuthoritySerializer, CertificateProfileSerializer, SignedCertificateSerializer
-from .forms import CreateProfileFromCertificateForm, IntermediateCAForm, IssueCertificateForm, RootCAForm
+from .forms import (
+    CreateProfileFromCertificateForm,
+    ImportCAForm,
+    IntermediateCAForm,
+    IssueCertificateForm,
+    RootCAForm,
+    SignCSRForm,
+)
 from .models import CertificateAuthority, CertificateProfile, SignedCertificate
 from .workflows import (
     create_certificate_profile_from_certificate,
     create_intermediate_certificate_authority,
     create_root_certificate_authority,
+    import_certificate_authority,
+    issue_signed_certificate_from_csr,
     issue_signed_certificate,
 )
 
@@ -31,6 +40,7 @@ class APIRootIndexAPIView(APIView):
                     'detail_template': request.build_absolute_uri('/api/cas/{id}/'),
                     'chain_template': request.build_absolute_uri('/api/cas/{id}/chain/'),
                     'children_template': request.build_absolute_uri('/api/cas/{id}/children/'),
+                    'sign_csr_template': request.build_absolute_uri('/api/cas/{id}/sign-csr/'),
                 },
                 'certificates': {
                     'list': request.build_absolute_uri(reverse('api-certificates-list')),
@@ -43,6 +53,7 @@ class APIRootIndexAPIView(APIView):
                 'workflows': {
                     'create_root_ca': request.build_absolute_uri(reverse('api-workflow-root-ca')),
                     'create_intermediate_ca': request.build_absolute_uri(reverse('api-workflow-intermediate-ca')),
+                    'import_ca': request.build_absolute_uri(reverse('api-workflow-import-ca')),
                     'issue_certificate': request.build_absolute_uri(reverse('api-workflow-certificate')),
                     'derive_profile_from_certificate': request.build_absolute_uri(
                         reverse('api-workflow-profile-from-certificate')
@@ -100,6 +111,35 @@ class CertificateAuthorityViewSet(viewsets.ReadOnlyModelViewSet):
             many=True,
         )
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='sign-csr')
+    def sign_csr(self, request, pk=None):
+        authority = self.get_object()
+        profile_queryset = CertificateProfile.objects.filter(owner__in=[None, request.user]).order_by('owner_id', 'name')
+        payload = {
+            **request.data,
+            'certificate_profile': request.data.get('certificate_profile_id'),
+        }
+        form = SignCSRForm(payload, profile_queryset=profile_queryset)
+        if not form.is_valid():
+            return Response({'errors': form.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            certificate = issue_signed_certificate_from_csr(
+                owner=request.user,
+                issuer_authority=authority,
+                name=form.cleaned_data['name'],
+                csr_pem=form.cleaned_data['csr_pem'],
+                certificate_profile=form.cleaned_data.get('certificate_profile'),
+                issuer_key_passphrase=form.cleaned_data.get('issuer_key_passphrase') or None,
+                days_valid=form.cleaned_data['days_valid'],
+                key_usage=form.key_usage_payload(),
+                extended_key_usages=form.extended_key_usage_payload(),
+            )
+        except ValidationError as exc:
+            return Response({'detail': exc.message}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(SignedCertificateSerializer(certificate, context={'request': request}).data, status=status.HTTP_201_CREATED)
 
 
 class SignedCertificateViewSet(viewsets.ReadOnlyModelViewSet):
@@ -261,6 +301,50 @@ class IntermediateCAWorkflowAPIView(APIView):
                 passphrase=form.cleaned_data.get('passphrase') or None,
                 parent_key_passphrase=form.cleaned_data.get('parent_key_passphrase') or None,
                 days_valid=form.cleaned_data['days_valid'],
+            )
+        except ValidationError as exc:
+            return Response({'detail': exc.message}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(CertificateAuthoritySerializer(authority, context={'request': request}).data, status=status.HTTP_201_CREATED)
+
+
+class ImportCAWorkflowSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=150)
+    certificate_pem = serializers.CharField()
+    private_key_pem = serializers.CharField()
+    key_passphrase = serializers.CharField(required=False, allow_blank=True)
+    parent_ca_id = serializers.IntegerField(required=False, allow_null=True)
+    certification_depth = serializers.IntegerField(min_value=1, max_value=10, default=3)
+
+
+class ImportCAWorkflowAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ImportCAWorkflowSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        parent_ca = None
+        if data.get('parent_ca_id'):
+            try:
+                parent_ca = CertificateAuthority.objects.get(id=data['parent_ca_id'], owner=request.user)
+            except CertificateAuthority.DoesNotExist:
+                return Response({'detail': 'Parent certificate authority not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        form = ImportCAForm(data, owner=request.user)
+        if not form.is_valid():
+            return Response({'errors': form.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            authority = import_certificate_authority(
+                owner=request.user,
+                name=form.cleaned_data['name'],
+                certificate_pem=form.cleaned_data['certificate_pem'],
+                private_key_pem=form.cleaned_data['private_key_pem'],
+                key_passphrase=form.cleaned_data.get('key_passphrase') or None,
+                parent_authority=parent_ca,
+                certification_depth=form.cleaned_data['certification_depth'],
             )
         except ValidationError as exc:
             return Response({'detail': exc.message}, status=status.HTTP_400_BAD_REQUEST)

@@ -9,6 +9,7 @@ from .api_views import (
     CertificateProfileViewSet,
     DashboardAPIView,
     DeriveProfileFromCertificateWorkflowAPIView,
+    ImportCAWorkflowAPIView,
     IntermediateCAWorkflowAPIView,
     IssueCertificateWorkflowAPIView,
     RootCAWorkflowAPIView,
@@ -34,6 +35,7 @@ urlpatterns = [
     path('dashboard/', DashboardAPIView.as_view(), name='api-dashboard'),
     path('workflows/root-cas/', RootCAWorkflowAPIView.as_view(), name='api-workflow-root-ca'),
     path('workflows/intermediate-cas/', IntermediateCAWorkflowAPIView.as_view(), name='api-workflow-intermediate-ca'),
+    path('workflows/import-ca/', ImportCAWorkflowAPIView.as_view(), name='api-workflow-import-ca'),
     path('workflows/certificates/', IssueCertificateWorkflowAPIView.as_view(), name='api-workflow-certificate'),
     path(
         'workflows/profiles/from-certificate/',

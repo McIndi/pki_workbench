@@ -12,8 +12,9 @@
             </div>
         </div>
 
-        <form method="post" class="card shadow-sm border-0">
+        <form method="post" class="card shadow-sm border-0 mb-4">
             {% csrf_token %}
+            <input type="hidden" name="action" value="create_root">
             <div class="card-body p-4">
                 {% if form.non_field_errors %}
                     <div class="alert alert-danger">{{ form.non_field_errors }}</div>
@@ -99,6 +100,46 @@
             <div class="card-footer bg-body border-0 p-4 pt-0 d-flex gap-2 justify-content-end">
                 <a href="{% url 'home' %}" class="btn btn-outline-secondary">Cancel</a>
                 <button type="submit" class="btn btn-primary">Create Root CA</button>
+            </div>
+        </form>
+
+        <form method="post" class="card shadow-sm border-0">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="import_ca">
+            <div class="card-body p-4">
+                {% if import_form.non_field_errors %}
+                    <div class="alert alert-danger">{{ import_form.non_field_errors }}</div>
+                {% endif %}
+                <h2 class="h6 text-uppercase text-body-secondary mb-3">Import Existing CA (Bring Your Own Key)</h2>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="{{ import_form.name.id_for_label }}">Authority name</label>
+                        {{ import_form.name }}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="{{ import_form.parent_ca.id_for_label }}">Parent CA (optional, for intermediate import)</label>
+                        {{ import_form.parent_ca }}
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="{{ import_form.certification_depth.id_for_label }}">Certification depth (root imports)</label>
+                        {{ import_form.certification_depth }}
+                    </div>
+                    <div class="col-md-9">
+                        <label class="form-label" for="{{ import_form.key_passphrase.id_for_label }}">Private key passphrase (if encrypted)</label>
+                        {{ import_form.key_passphrase }}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="{{ import_form.certificate_pem.id_for_label }}">CA certificate PEM</label>
+                        {{ import_form.certificate_pem }}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="{{ import_form.private_key_pem.id_for_label }}">CA private key PEM</label>
+                        {{ import_form.private_key_pem }}
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-body border-0 p-4 pt-0 d-flex gap-2 justify-content-end">
+                <button type="submit" class="btn btn-outline-primary">Import Existing CA</button>
             </div>
         </form>
     </div>

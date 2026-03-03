@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import CertificateProfile, PrivateKey
+from .models import CertificateAuthority, CertificateProfile, PrivateKey
 
 
 KEY_ALGORITHM_CHOICES = [
@@ -293,3 +293,92 @@ class CreateProfileFromCertificateForm(forms.Form):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.widget.attrs.update({'class': 'form-control'})
+
+
+class ImportCAForm(forms.Form):
+    name = forms.CharField(max_length=150)
+    certificate_pem = forms.CharField(widget=forms.Textarea(attrs={'rows': 8}), help_text='PEM-encoded CA certificate')
+    private_key_pem = forms.CharField(widget=forms.Textarea(attrs={'rows': 8}), help_text='PEM-encoded matching private key')
+    key_passphrase = forms.CharField(required=False, widget=forms.PasswordInput(render_value=False))
+    parent_ca = forms.ModelChoiceField(queryset=CertificateAuthority.objects.none(), required=False)
+    certification_depth = forms.IntegerField(min_value=1, max_value=10, initial=3)
+
+    def __init__(self, *args, owner=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['parent_ca'].queryset = CertificateAuthority.objects.filter(owner=owner).order_by('name') if owner else CertificateAuthority.objects.none()
+        for field_name, field in self.fields.items():
+            if isinstance(field.widget, forms.CheckboxInput):
+                field.widget.attrs.update({'class': 'form-check-input'})
+            else:
+                field.widget.attrs.update({'class': 'form-control'})
+
+
+class SignCSRForm(forms.Form):
+    certificate_profile = forms.ModelChoiceField(
+        queryset=CertificateProfile.objects.none(),
+        required=False,
+        empty_label='Custom settings (no profile)',
+    )
+    name = forms.CharField(max_length=150)
+    csr_pem = forms.CharField(widget=forms.Textarea(attrs={'rows': 8}), help_text='PEM-encoded CSR')
+    issuer_key_passphrase = forms.CharField(required=False, widget=forms.PasswordInput(render_value=False))
+    days_valid = forms.IntegerField(min_value=1, initial=365)
+
+    ku_digital_signature = forms.BooleanField(required=False, initial=True)
+    ku_content_commitment = forms.BooleanField(required=False, initial=False)
+    ku_key_encipherment = forms.BooleanField(required=False, initial=True)
+    ku_data_encipherment = forms.BooleanField(required=False, initial=False)
+    ku_key_agreement = forms.BooleanField(required=False, initial=False)
+    ku_key_cert_sign = forms.BooleanField(required=False, initial=False)
+    ku_crl_sign = forms.BooleanField(required=False, initial=False)
+    ku_encipher_only = forms.BooleanField(required=False, initial=False)
+    ku_decipher_only = forms.BooleanField(required=False, initial=False)
+    ku_critical = forms.BooleanField(required=False, initial=True)
+
+    eku_server_auth = forms.BooleanField(required=False, initial=True)
+    eku_client_auth = forms.BooleanField(required=False, initial=False)
+    eku_code_signing = forms.BooleanField(required=False, initial=False)
+    eku_email_protection = forms.BooleanField(required=False, initial=False)
+    eku_time_stamping = forms.BooleanField(required=False, initial=False)
+    eku_ocsp_signing = forms.BooleanField(required=False, initial=False)
+
+    def __init__(self, *args, profile_queryset=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if profile_queryset is None:
+            profile_queryset = CertificateProfile.objects.none()
+        self.fields['certificate_profile'].queryset = profile_queryset
+        for field in self.fields.values():
+            if isinstance(field.widget, forms.CheckboxInput):
+                field.widget.attrs.update({'class': 'form-check-input'})
+            else:
+                field.widget.attrs.update({'class': 'form-control'})
+
+    def key_usage_payload(self) -> dict:
+        return {
+            'digital_signature': self.cleaned_data['ku_digital_signature'],
+            'content_commitment': self.cleaned_data['ku_content_commitment'],
+            'key_encipherment': self.cleaned_data['ku_key_encipherment'],
+            'data_encipherment': self.cleaned_data['ku_data_encipherment'],
+            'key_agreement': self.cleaned_data['ku_key_agreement'],
+            'key_cert_sign': self.cleaned_data['ku_key_cert_sign'],
+            'crl_sign': self.cleaned_data['ku_crl_sign'],
+            'encipher_only': self.cleaned_data['ku_encipher_only'],
+            'decipher_only': self.cleaned_data['ku_decipher_only'],
+            'critical': self.cleaned_data['ku_critical'],
+        }
+
+    def extended_key_usage_payload(self) -> list[str]:
+        payload = []
+        if self.cleaned_data['eku_server_auth']:
+            payload.append('server_auth')
+        if self.cleaned_data['eku_client_auth']:
+            payload.append('client_auth')
+        if self.cleaned_data['eku_code_signing']:
+            payload.append('code_signing')
+        if self.cleaned_data['eku_email_protection']:
+            payload.append('email_protection')
+        if self.cleaned_data['eku_time_stamping']:
+            payload.append('time_stamping')
+        if self.cleaned_data['eku_ocsp_signing']:
+            payload.append('ocsp_signing')
+        return payload

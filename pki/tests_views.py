@@ -4,6 +4,7 @@ from django.urls import reverse
 from io import BytesIO
 from zipfile import ZipFile
 
+from . import services
 from .models import CertificateAuthority, CertificateProfile, SignedCertificate
 from .workflows import create_intermediate_certificate_authority, create_root_certificate_authority, issue_signed_certificate
 
@@ -53,6 +54,39 @@ class PKIViewsTests(TestCase):
         self.assertEqual(response.status_code, 302)
         root = CertificateAuthority.objects.get(name='View Root Authority', owner=self.user)
         self.assertRedirects(response, reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}))
+
+    def test_create_root_view_can_import_existing_ca(self):
+        self.client.force_login(self.user)
+        private_key_pem = services.create_private_key(key_algorithm='rsa', key_size=2048)
+        certificate_pem = services.create_self_signed_ca(
+            private_key_pem=private_key_pem,
+            subject={
+                'country_name': 'US',
+                'state_or_province_name': 'New York',
+                'locality_name': 'New York',
+                'organization_name': 'PKI Workbench',
+                'common_name': 'Imported View Root',
+            },
+            days_valid=3650,
+            path_length=2,
+        )
+
+        response = self.client.post(
+            reverse('pki-create-root-ca'),
+            data={
+                'action': 'import_ca',
+                'name': 'Imported View Root',
+                'certificate_pem': certificate_pem.decode('utf-8'),
+                'private_key_pem': private_key_pem.decode('utf-8'),
+                'key_passphrase': '',
+                'certification_depth': 3,
+                'parent_ca': '',
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        imported = CertificateAuthority.objects.get(owner=self.user, name='Imported View Root')
+        self.assertRedirects(response, reverse('pki-ca-workbench', kwargs={'ca_id': imported.pk}))
 
     def test_workbench_issue_certificate_action(self):
         self.client.force_login(self.user)
@@ -123,6 +157,47 @@ class PKIViewsTests(TestCase):
         self.assertTrue(
             CertificateAuthority.objects.filter(name='Intermediate Via Workbench', owner=self.user, parent=root).exists()
         )
+
+    def test_workbench_sign_csr_action(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Workbench Sign CSR Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+        requester_key_pem = services.create_private_key(key_algorithm='rsa', key_size=2048)
+        requester_csr_pem = services.create_csr(
+            private_key_pem=requester_key_pem,
+            subject={
+                'country_name': 'US',
+                'state_or_province_name': 'New York',
+                'locality_name': 'New York',
+                'organization_name': 'PKI Workbench',
+                'common_name': 'csr-ui.example.com',
+            },
+        )
+
+        response = self.client.post(
+            reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
+            data={
+                'action': 'sign_csr',
+                'sign-csr-name': 'Signed Via CSR Tab',
+                'sign-csr-certificate_profile': '',
+                'sign-csr-csr_pem': requester_csr_pem.decode('utf-8'),
+                'sign-csr-issuer_key_passphrase': '',
+                'sign-csr-days_valid': 365,
+                'sign-csr-ku_digital_signature': 'on',
+                'sign-csr-ku_key_encipherment': 'on',
+                'sign-csr-ku_critical': 'on',
+                'sign-csr-eku_server_auth': 'on',
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        certificate = SignedCertificate.objects.get(owner=self.user, name='Signed Via CSR Tab')
+        self.assertIsNone(certificate.private_key)
+        self.assertIsNotNone(certificate.csr)
 
     def test_issued_certificate_detail_and_downloads(self):
         self.client.force_login(self.user)
@@ -204,6 +279,44 @@ class PKIViewsTests(TestCase):
         self.client.force_login(self.user)
         response = self.client.get(
             reverse('pki-issued-certificate-download', kwargs={'certificate_id': issued.pk, 'artifact': 'pubcert'})
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_pair_zip_download_returns_404_when_private_key_not_stored(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='No Key Zip Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+        requester_key_pem = services.create_private_key(key_algorithm='rsa', key_size=2048)
+        requester_csr_pem = services.create_csr(
+            private_key_pem=requester_key_pem,
+            subject={
+                'country_name': 'US',
+                'state_or_province_name': 'New York',
+                'locality_name': 'New York',
+                'organization_name': 'PKI Workbench',
+                'common_name': 'zip-missing-key.example.com',
+            },
+        )
+
+        self.client.post(
+            reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
+            data={
+                'action': 'sign_csr',
+                'sign-csr-name': 'CSR Without Stored Key',
+                'sign-csr-certificate_profile': '',
+                'sign-csr-csr_pem': requester_csr_pem.decode('utf-8'),
+                'sign-csr-issuer_key_passphrase': '',
+                'sign-csr-days_valid': 365,
+            },
+        )
+
+        certificate = SignedCertificate.objects.get(owner=self.user, name='CSR Without Stored Key')
+        response = self.client.get(
+            reverse('pki-issued-certificate-download', kwargs={'certificate_id': certificate.pk, 'artifact': 'pair-zip'})
         )
         self.assertEqual(response.status_code, 404)
 

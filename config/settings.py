@@ -18,6 +18,15 @@ except Exception as exc:
 DEBUG = env.bool('DJANGO_DEBUG', default=True)
 ALLOWED_HOSTS = env.list('DJANGO_ALLOWED_HOSTS', default=[])
 CSRF_TRUSTED_ORIGINS = env.list('DJANGO_CSRF_TRUSTED_ORIGINS', default=[])
+FERNET_SALT_KEYS = [
+    key.strip()
+    for key in env('DJANGO_FERNET_SALT_KEYS', default='').split(',')
+    if key.strip()
+]
+legacy_salt_key = env('DJANGO_SALT_KEY', default='').strip()
+if legacy_salt_key and legacy_salt_key not in FERNET_SALT_KEYS:
+    FERNET_SALT_KEYS.insert(0, legacy_salt_key)
+SALT_KEY = FERNET_SALT_KEYS or [SECRET_KEY]
 
 
 INSTALLED_APPS = [

@@ -30,7 +30,7 @@ class CertificateAuthoritySerializer(serializers.ModelSerializer):
 
 class SignedCertificateSerializer(serializers.ModelSerializer):
     issued_by_id = serializers.IntegerField(source='issued_by.id', allow_null=True, read_only=True)
-    private_key_algorithm = serializers.CharField(source='private_key.algorithm', read_only=True)
+    private_key_algorithm = serializers.SerializerMethodField()
     detail_url = serializers.SerializerMethodField()
     download_urls = serializers.SerializerMethodField()
 
@@ -54,6 +54,11 @@ class SignedCertificateSerializer(serializers.ModelSerializer):
         if not request:
             return ''
         return request.build_absolute_uri(f'/pki/certificate/{obj.id}/')
+
+    def get_private_key_algorithm(self, obj):
+        if obj.private_key is None:
+            return None
+        return obj.private_key.algorithm
 
     def get_download_urls(self, obj):
         request = self.context.get('request')

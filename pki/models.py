@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.db import models
+from encrypted_fields.fields import EncryptedTextField
 
 
 class PrivateKey(models.Model):
@@ -24,7 +25,7 @@ class PrivateKey(models.Model):
 	curve_name = models.CharField(max_length=64, blank=True)
 	key_size = models.PositiveIntegerField(null=True, blank=True)
 	is_encrypted = models.BooleanField(default=False)
-	private_key_pem = models.TextField()
+	private_key_pem = EncryptedTextField()
 	created_at = models.DateTimeField(auto_now_add=True)
 
 	def __str__(self):
@@ -40,7 +41,7 @@ class CertificateSigningRequest(models.Model):
 		null=True,
 		blank=True,
 	)
-	private_key = models.ForeignKey(PrivateKey, on_delete=models.PROTECT, related_name='csrs')
+	private_key = models.ForeignKey(PrivateKey, on_delete=models.PROTECT, related_name='csrs', null=True, blank=True)
 	subject = models.JSONField(default=dict)
 	csr_pem = models.TextField()
 	created_at = models.DateTimeField(auto_now_add=True)
@@ -69,7 +70,7 @@ class SignedCertificate(models.Model):
 		blank=True,
 		related_name='issued_certificates',
 	)
-	private_key = models.ForeignKey(PrivateKey, on_delete=models.PROTECT, related_name='certificates')
+	private_key = models.ForeignKey(PrivateKey, on_delete=models.PROTECT, related_name='certificates', null=True, blank=True)
 	csr = models.ForeignKey(
 		CertificateSigningRequest,
 		on_delete=models.SET_NULL,
