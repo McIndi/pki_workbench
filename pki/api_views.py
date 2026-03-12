@@ -221,7 +221,11 @@ class RootCACreateSerializer(serializers.Serializer):
     curve_name = serializers.CharField(required=False, allow_blank=True, default='secp256r1')
     key_size = serializers.IntegerField(required=False, default=2048)
     public_exponent = serializers.IntegerField(required=False, default=65537)
-    passphrase = serializers.CharField(required=False, allow_blank=True)
+    passphrase = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text='Password to protect the newly generated root CA private key (optional, can be left blank)',
+    )
 
 
 class RootCAWorkflowAPIView(APIView):
@@ -267,8 +271,16 @@ class IntermediateWorkflowSerializer(serializers.Serializer):
     curve_name = serializers.CharField(required=False, allow_blank=True, default='secp256r1')
     key_size = serializers.IntegerField(required=False, default=2048)
     public_exponent = serializers.IntegerField(required=False, default=65537)
-    passphrase = serializers.CharField(required=False, allow_blank=True)
-    parent_key_passphrase = serializers.CharField(required=False, allow_blank=True)
+    passphrase = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text='Password to protect the newly generated intermediate CA private key (optional, can be left blank)',
+    )
+    parent_key_passphrase = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text='Password to unlock the parent CA private key for signing. Required only if the parent CA key is encrypted.',
+    )
 
 
 class IntermediateCAWorkflowAPIView(APIView):
@@ -312,7 +324,11 @@ class ImportCAWorkflowSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=150)
     certificate_pem = serializers.CharField()
     private_key_pem = serializers.CharField()
-    key_passphrase = serializers.CharField(required=False, allow_blank=True)
+    key_passphrase = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text='Password to decrypt the imported CA private key. Required only if the key is encrypted.',
+    )
     parent_ca_id = serializers.IntegerField(required=False, allow_null=True)
     certification_depth = serializers.IntegerField(min_value=1, max_value=10, default=3)
 
@@ -368,8 +384,16 @@ class CertificateWorkflowSerializer(serializers.Serializer):
     curve_name = serializers.CharField(required=False, allow_blank=True, default='secp256r1')
     key_size = serializers.IntegerField(required=False, default=2048)
     public_exponent = serializers.IntegerField(required=False, default=65537)
-    passphrase = serializers.CharField(required=False, allow_blank=True)
-    issuer_key_passphrase = serializers.CharField(required=False, allow_blank=True)
+    passphrase = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text='Password to protect the newly generated certificate private key (optional, can be left blank)',
+    )
+    issuer_key_passphrase = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text='Password to unlock the issuing CA private key for signing. Required only if the issuing CA key is encrypted.',
+    )
     san_dns_names = serializers.CharField(required=False, allow_blank=True)
 
     ku_digital_signature = serializers.BooleanField(required=False, default=True)

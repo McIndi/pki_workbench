@@ -415,7 +415,11 @@ class SignCSRForm(forms.Form):
     )
     name = forms.CharField(max_length=150)
     csr_pem = forms.CharField(widget=forms.Textarea(attrs={'rows': 8}), help_text='PEM-encoded CSR')
-    issuer_key_passphrase = forms.CharField(required=False, widget=forms.PasswordInput(render_value=False))
+    issuer_key_passphrase = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(render_value=False),
+        help_text='Password to unlock the issuing CA private key for signing. Required only if the issuing CA key is encrypted.',
+    )
     days_valid = forms.IntegerField(min_value=1, initial=365)
 
     ku_digital_signature = forms.BooleanField(required=False, initial=True)
