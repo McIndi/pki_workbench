@@ -272,6 +272,118 @@ class CAWorkbenchView(LoginRequiredMixin, View):
 			return redirect('pki-ca-workbench', ca_id=fallback_ca.id)
 		return redirect('pki-create-root-ca')
 
+	def _handle_create_intermediate(
+		self,
+		request: HttpRequest,
+		ca: CertificateAuthority,
+		intermediate_form: IntermediateCAForm,
+	) -> HttpResponse | None:
+		if not intermediate_form.is_valid():
+			return None
+
+		try:
+			child_ca = create_intermediate_certificate_authority(
+				owner=request.user,
+				parent_authority=ca,
+				name=intermediate_form.cleaned_data['name'],
+				subject=intermediate_form.subject_payload(),
+				key_algorithm=intermediate_form.cleaned_data['key_algorithm'],
+				curve_name=intermediate_form.cleaned_data.get('curve_name') or 'secp256r1',
+				key_size=intermediate_form.cleaned_data.get('key_size') or 2048,
+				public_exponent=intermediate_form.cleaned_data.get('public_exponent') or 65537,
+				passphrase=intermediate_form.cleaned_data.get('passphrase') or None,
+				parent_key_passphrase=intermediate_form.cleaned_data.get('parent_key_passphrase') or None,
+				days_valid=intermediate_form.cleaned_data['days_valid'],
+			)
+		except ValidationError as exc:
+			intermediate_form.add_error(None, exc.message)
+			return None
+
+		messages.success(request, f'Intermediate CA "{child_ca.name}" created.')
+		return redirect('pki-ca-workbench', ca_id=child_ca.id)
+
+	def _handle_issue_certificate(
+		self,
+		request: HttpRequest,
+		ca: CertificateAuthority,
+		issue_form: IssueCertificateForm,
+	) -> HttpResponse | None:
+		if not issue_form.is_valid():
+			return None
+
+		try:
+			signed_certificate = issue_signed_certificate(
+				owner=request.user,
+				issuer_authority=ca,
+				name=issue_form.cleaned_data['name'],
+				subject=issue_form.subject_payload(),
+				key_algorithm=issue_form.cleaned_data['key_algorithm'],
+				curve_name=issue_form.cleaned_data.get('curve_name') or 'secp256r1',
+				key_size=issue_form.cleaned_data.get('key_size') or 2048,
+				public_exponent=issue_form.cleaned_data.get('public_exponent') or 65537,
+				certificate_profile=issue_form.cleaned_data.get('certificate_profile'),
+				passphrase=issue_form.cleaned_data.get('passphrase') or None,
+				issuer_key_passphrase=issue_form.cleaned_data.get('issuer_key_passphrase') or None,
+				days_valid=issue_form.cleaned_data['days_valid'],
+				san_dns_names=issue_form.san_dns_name_list(),
+				key_usage=issue_form.key_usage_payload(),
+				extended_key_usages=issue_form.extended_key_usage_payload(),
+			)
+		except ValidationError as exc:
+			issue_form.add_error(None, exc.message)
+			return None
+
+		messages.success(request, f'Certificate "{signed_certificate.name}" issued.')
+		return redirect('pki-ca-workbench', ca_id=ca.id)
+
+	def _handle_sign_csr(
+		self,
+		request: HttpRequest,
+		ca: CertificateAuthority,
+		sign_csr_form: SignCSRForm,
+	) -> HttpResponse | None:
+		if not sign_csr_form.is_valid():
+			return None
+
+		try:
+			signed_certificate = issue_signed_certificate_from_csr(
+				owner=request.user,
+				issuer_authority=ca,
+				name=sign_csr_form.cleaned_data['name'],
+				csr_pem=sign_csr_form.cleaned_data['csr_pem'],
+				certificate_profile=sign_csr_form.cleaned_data.get('certificate_profile'),
+				issuer_key_passphrase=sign_csr_form.cleaned_data.get('issuer_key_passphrase') or None,
+				days_valid=sign_csr_form.cleaned_data['days_valid'],
+				key_usage=sign_csr_form.key_usage_payload(),
+				extended_key_usages=sign_csr_form.extended_key_usage_payload(),
+			)
+		except ValidationError as exc:
+			sign_csr_form.add_error(None, exc.message)
+			return None
+
+		messages.success(request, f'CSR signed as certificate "{signed_certificate.name}".')
+		return redirect('pki-ca-workbench', ca_id=ca.id)
+
+	def _handle_create_certificate_profile(
+		self,
+		request: HttpRequest,
+		ca: CertificateAuthority,
+		profile_form: CertificateProfileForm,
+	) -> HttpResponse | None:
+		if not profile_form.is_valid():
+			return None
+
+		try:
+			profile = profile_form.save(commit=False)
+			profile.owner = request.user
+			profile.save()
+		except Exception as exc:
+			profile_form.add_error(None, str(exc))
+			return None
+
+		messages.success(request, f'Certificate profile "{profile.name}" created.')
+		return redirect('pki-ca-workbench', ca_id=ca.id)
+
 	def post(self, request: HttpRequest, ca_id: int) -> HttpResponse:
 		ca = self._get_ca(request, ca_id)
 		action = request.POST.get('action')
@@ -321,26 +433,9 @@ class CAWorkbenchView(LoginRequiredMixin, View):
 		if action == 'create_intermediate':
 			active_tab = 'intermediate'
 			intermediate_form = IntermediateCAForm(request.POST, prefix='intermediate')
-			if intermediate_form.is_valid():
-				try:
-					child_ca = create_intermediate_certificate_authority(
-						owner=request.user,
-						parent_authority=ca,
-						name=intermediate_form.cleaned_data['name'],
-						subject=intermediate_form.subject_payload(),
-						key_algorithm=intermediate_form.cleaned_data['key_algorithm'],
-						curve_name=intermediate_form.cleaned_data.get('curve_name') or 'secp256r1',
-						key_size=intermediate_form.cleaned_data.get('key_size') or 2048,
-						public_exponent=intermediate_form.cleaned_data.get('public_exponent') or 65537,
-						passphrase=intermediate_form.cleaned_data.get('passphrase') or None,
-						parent_key_passphrase=intermediate_form.cleaned_data.get('parent_key_passphrase') or None,
-						days_valid=intermediate_form.cleaned_data['days_valid'],
-					)
-				except ValidationError as exc:
-					intermediate_form.add_error(None, exc.message)
-				else:
-					messages.success(request, f'Intermediate CA "{child_ca.name}" created.')
-					return redirect('pki-ca-workbench', ca_id=ca.id)
+			redirect_response = self._handle_create_intermediate(request, ca, intermediate_form)
+			if redirect_response is not None:
+				return redirect_response
 
 		elif action == 'issue_certificate':
 			active_tab = 'issue'
@@ -349,30 +444,9 @@ class CAWorkbenchView(LoginRequiredMixin, View):
 				prefix='issue',
 				profile_queryset=self._profile_queryset(request),
 			)
-			if issue_form.is_valid():
-				try:
-					signed_certificate = issue_signed_certificate(
-						owner=request.user,
-						issuer_authority=ca,
-						name=issue_form.cleaned_data['name'],
-						subject=issue_form.subject_payload(),
-						key_algorithm=issue_form.cleaned_data['key_algorithm'],
-						curve_name=issue_form.cleaned_data.get('curve_name') or 'secp256r1',
-						key_size=issue_form.cleaned_data.get('key_size') or 2048,
-						public_exponent=issue_form.cleaned_data.get('public_exponent') or 65537,
-						certificate_profile=issue_form.cleaned_data.get('certificate_profile'),
-						passphrase=issue_form.cleaned_data.get('passphrase') or None,
-						issuer_key_passphrase=issue_form.cleaned_data.get('issuer_key_passphrase') or None,
-						days_valid=issue_form.cleaned_data['days_valid'],
-						san_dns_names=issue_form.san_dns_name_list(),
-						key_usage=issue_form.key_usage_payload(),
-						extended_key_usages=issue_form.extended_key_usage_payload(),
-					)
-				except ValidationError as exc:
-					issue_form.add_error(None, exc.message)
-				else:
-					messages.success(request, f'Certificate "{signed_certificate.name}" issued.')
-					return redirect('pki-ca-workbench', ca_id=ca.id)
+			redirect_response = self._handle_issue_certificate(request, ca, issue_form)
+			if redirect_response is not None:
+				return redirect_response
 
 		elif action == 'sign_csr':
 			active_tab = 'sign-csr'
@@ -381,38 +455,16 @@ class CAWorkbenchView(LoginRequiredMixin, View):
 				prefix='sign-csr',
 				profile_queryset=self._profile_queryset(request),
 			)
-			if sign_csr_form.is_valid():
-				try:
-					signed_certificate = issue_signed_certificate_from_csr(
-						owner=request.user,
-						issuer_authority=ca,
-						name=sign_csr_form.cleaned_data['name'],
-						csr_pem=sign_csr_form.cleaned_data['csr_pem'],
-						certificate_profile=sign_csr_form.cleaned_data.get('certificate_profile'),
-						issuer_key_passphrase=sign_csr_form.cleaned_data.get('issuer_key_passphrase') or None,
-						days_valid=sign_csr_form.cleaned_data['days_valid'],
-						key_usage=sign_csr_form.key_usage_payload(),
-						extended_key_usages=sign_csr_form.extended_key_usage_payload(),
-					)
-				except ValidationError as exc:
-					sign_csr_form.add_error(None, exc.message)
-				else:
-					messages.success(request, f'CSR signed as certificate "{signed_certificate.name}".')
-					return redirect('pki-ca-workbench', ca_id=ca.id)
+			redirect_response = self._handle_sign_csr(request, ca, sign_csr_form)
+			if redirect_response is not None:
+				return redirect_response
 
 		elif action == 'create_certificate_profile':
 			active_tab = 'profile'
 			profile_form = CertificateProfileForm(request.POST, prefix='profile')
-			if profile_form.is_valid():
-				try:
-					profile = profile_form.save(commit=False)
-					profile.owner = request.user
-					profile.save()
-				except Exception as exc:
-					profile_form.add_error(None, str(exc))
-				else:
-					messages.success(request, f'Certificate profile "{profile.name}" created.')
-					return redirect('pki-ca-workbench', ca_id=ca.id)
+			redirect_response = self._handle_create_certificate_profile(request, ca, profile_form)
+			if redirect_response is not None:
+				return redirect_response
 
 		context = self._build_context(
 			ca,
