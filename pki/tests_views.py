@@ -5,7 +5,7 @@ from io import BytesIO
 from zipfile import ZipFile
 
 from . import services
-from .models import CertificateAuthority, CertificateProfile, SignedCertificate
+from .models import CertificateAuthority, CertificateProfile, CertificateSigningRequest, PrivateKey, SignedCertificate
 from .workflows import create_intermediate_certificate_authority, create_root_certificate_authority, issue_signed_certificate
 
 
@@ -439,6 +439,141 @@ class PKIViewsTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertFalse(SignedCertificate.objects.filter(pk=issued.pk).exists())
+
+    def test_workbench_manage_delete_csr_action(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Delete CSR Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+        requester_key_pem = services.create_private_key(key_algorithm='rsa', key_size=2048)
+        requester_csr_pem = services.create_csr(
+            private_key_pem=requester_key_pem,
+            subject={
+                'country_name': 'US',
+                'state_or_province_name': 'New York',
+                'locality_name': 'New York',
+                'organization_name': 'PKI Workbench',
+                'common_name': 'delete-csr.example.com',
+            },
+        )
+        csr = CertificateSigningRequest.objects.create(
+            owner=self.user,
+            name='Delete Me CSR',
+            subject={'common_name': 'delete-csr.example.com'},
+            csr_pem=requester_csr_pem.decode('utf-8'),
+        )
+
+        response = self.client.post(
+            reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
+            data={
+                'action': 'delete_csr',
+                'csr_id': str(csr.pk),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(CertificateSigningRequest.objects.filter(pk=csr.pk).exists())
+
+    def test_workbench_manage_delete_private_key_action(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Delete Private Key Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+        private_key = PrivateKey.objects.create(
+            owner=self.user,
+            name='Delete Me Private Key',
+            algorithm='rsa',
+            key_size=2048,
+            private_key_pem='-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n',
+        )
+
+        response = self.client.post(
+            reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
+            data={
+                'action': 'delete_private_key',
+                'private_key_id': str(private_key.pk),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(PrivateKey.objects.filter(pk=private_key.pk).exists())
+
+    def test_workbench_manage_delete_ca_action_redirects_to_fallback_ca(self):
+        self.client.force_login(self.user)
+        first = create_root_certificate_authority(
+            owner=self.user,
+            name='Delete Me CA',
+            subject=self.subject,
+            certification_depth=3,
+        )
+        second = create_root_certificate_authority(
+            owner=self.user,
+            name='Fallback CA',
+            subject={**self.subject, 'common_name': 'Fallback CA'},
+            certification_depth=3,
+        )
+
+        response = self.client.post(
+            reverse('pki-ca-workbench', kwargs={'ca_id': first.pk}),
+            data={
+                'action': 'delete_ca',
+                'target_ca_id': str(first.pk),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse('pki-ca-workbench', kwargs={'ca_id': second.pk}))
+        self.assertFalse(CertificateAuthority.objects.filter(pk=first.pk).exists())
+
+    def test_workbench_unknown_action_keeps_unified_tab_active(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Unknown Action Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+
+        response = self.client.post(
+            reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
+            data={
+                'action': 'does_not_exist',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode('utf-8')
+        self.assertIn('nav-link active" id="unified-tab"', html)
+        self.assertIn('show active" id="unified-pane" role="tabpanel"', html)
+
+    def test_invalid_issue_certificate_submit_keeps_no_known_tab_active(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Invalid Issue Tab Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+
+        response = self.client.post(
+            reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
+            data={
+                'action': 'issue_certificate',
+                'issue-name': '',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode('utf-8')
+        self.assertNotIn('nav-link active" id="unified-tab"', html)
+        self.assertNotIn('nav-link active" id="manage-tab"', html)
+        self.assertNotIn('nav-link active" id="profile-tab"', html)
 
     def test_issued_certificate_detail_and_downloads(self):
         self.client.force_login(self.user)

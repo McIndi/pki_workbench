@@ -237,6 +237,26 @@ class CertificateAuthorityWorkflowTests(TestCase):
                 parent_key_passphrase=None,
             )
 
+    def test_create_intermediate_wrong_parent_passphrase_returns_validation_error(self):
+        root = create_root_certificate_authority(
+            owner=self.user_one,
+            name='Wrong Parent Passphrase Root',
+            subject=self.root_subject,
+            certification_depth=3,
+            passphrase='correct-passphrase',
+        )
+
+        with self.assertRaises(ValidationError) as exc_info:
+            create_intermediate_certificate_authority(
+                owner=self.user_one,
+                parent_authority=root,
+                name='Wrong Parent Passphrase Intermediate',
+                subject={**self.root_subject, 'common_name': 'wrong-parent-passphrase.example.com'},
+                parent_key_passphrase='wrong-passphrase',
+            )
+
+        self.assertIn('Unable to sign intermediate certificate authority:', str(exc_info.exception))
+
     def test_issue_certificate_requires_issuer_passphrase_when_issuer_key_encrypted(self):
         root = create_root_certificate_authority(
             owner=self.user_one,
@@ -258,6 +278,26 @@ class CertificateAuthorityWorkflowTests(TestCase):
                 issuer_key_passphrase=None,
             )
 
+    def test_issue_certificate_wrong_issuer_passphrase_returns_validation_error(self):
+        root = create_root_certificate_authority(
+            owner=self.user_one,
+            name='Wrong Issuer Passphrase Root',
+            subject=self.root_subject,
+            certification_depth=3,
+            passphrase='correct-passphrase',
+        )
+
+        with self.assertRaises(ValidationError) as exc_info:
+            issue_signed_certificate(
+                owner=self.user_one,
+                issuer_authority=root,
+                name='Wrong Issuer Passphrase Leaf',
+                subject={**self.root_subject, 'common_name': 'wrong-issuer-passphrase.example.com'},
+                issuer_key_passphrase='wrong-passphrase',
+            )
+
+        self.assertIn('Unable to sign certificate:', str(exc_info.exception))
+
     def test_issue_from_csr_returns_validation_error_for_invalid_csr(self):
         root = create_root_certificate_authority(
             owner=self.user_one,
@@ -273,3 +313,31 @@ class CertificateAuthorityWorkflowTests(TestCase):
                 name='Broken CSR',
                 csr_pem='-----BEGIN CERTIFICATE REQUEST-----\nnot-a-valid-csr\n-----END CERTIFICATE REQUEST-----',
             )
+
+    def test_issue_from_csr_wrong_issuer_passphrase_returns_validation_error(self):
+        root = create_root_certificate_authority(
+            owner=self.user_one,
+            name='Wrong CSR Issuer Passphrase Root',
+            subject=self.root_subject,
+            certification_depth=3,
+            passphrase='correct-passphrase',
+        )
+        requester_key_pem = services.create_private_key(key_algorithm='rsa', key_size=2048)
+        requester_csr_pem = services.create_csr(
+            private_key_pem=requester_key_pem,
+            subject={
+                **self.root_subject,
+                'common_name': 'wrong-csr-issuer-passphrase.example.com',
+            },
+        )
+
+        with self.assertRaises(ValidationError) as exc_info:
+            issue_signed_certificate_from_csr(
+                owner=self.user_one,
+                issuer_authority=root,
+                name='Wrong CSR Issuer Passphrase Leaf',
+                csr_pem=requester_csr_pem,
+                issuer_key_passphrase='wrong-passphrase',
+            )
+
+        self.assertIn('Unable to sign CSR:', str(exc_info.exception))
