@@ -111,6 +111,167 @@ class CAWorkbenchView(LoginRequiredMixin, View):
 		context = self._build_context(ca, active_tab='unified')
 		return render(request, self.template_name, context)
 
+	def _handle_unified_issue(
+		self,
+		request: HttpRequest,
+		ca: CertificateAuthority,
+		unified_form: UnifiedIssueForm,
+	) -> HttpResponse | None:
+		if not unified_form.is_valid():
+			return None
+
+		source_mode = unified_form.cleaned_data['source_mode']
+		create_ca = unified_form.cleaned_data.get('create_certificate_authority', False)
+		selected_profile = unified_form.cleaned_data.get('certificate_profile')
+		issuer_key_passphrase = unified_form.cleaned_data.get('issuer_key_passphrase') or None
+		# Backward-compatible fallback: CA mode signs with parent key; accept issuer field input too.
+		parent_key_passphrase = (
+			unified_form.cleaned_data.get('parent_key_passphrase')
+			or issuer_key_passphrase
+			or None
+		)
+
+		try:
+			if source_mode == 'csr':
+				signed_certificate = issue_signed_certificate_from_csr(
+					owner=request.user,
+					issuer_authority=ca,
+					name=unified_form.cleaned_data['name'],
+					csr_pem=unified_form.cleaned_data['csr_pem'],
+					certificate_profile=selected_profile,
+					issuer_key_passphrase=issuer_key_passphrase,
+					days_valid=unified_form.cleaned_data['days_valid'],
+					key_usage=unified_form.key_usage_payload(),
+					extended_key_usages=unified_form.extended_key_usage_payload(),
+				)
+				messages.success(request, f'CSR signed as certificate "{signed_certificate.name}".')
+				return redirect('pki-ca-workbench', ca_id=ca.id)
+
+			subject_payload = unified_form.subject_payload()
+			if selected_profile is not None:
+				subject_payload = {
+					**subject_payload,
+					**selected_profile.subject_payload(),
+				}
+
+			if create_ca:
+				key_algorithm = selected_profile.key_algorithm if selected_profile else unified_form.cleaned_data['key_algorithm']
+				curve_name = selected_profile.curve_name if selected_profile and selected_profile.curve_name else (unified_form.cleaned_data.get('curve_name') or 'secp256r1')
+				key_size = selected_profile.key_size if selected_profile and selected_profile.key_size else (unified_form.cleaned_data.get('key_size') or 2048)
+				public_exponent = selected_profile.public_exponent if selected_profile and selected_profile.public_exponent else (unified_form.cleaned_data.get('public_exponent') or 65537)
+				days_valid = selected_profile.days_valid if selected_profile and selected_profile.days_valid else unified_form.cleaned_data['days_valid']
+
+				child_ca = create_intermediate_certificate_authority(
+					owner=request.user,
+					parent_authority=ca,
+					name=unified_form.cleaned_data['name'],
+					subject=subject_payload,
+					key_algorithm=key_algorithm,
+					curve_name=curve_name,
+					key_size=key_size,
+					public_exponent=public_exponent,
+					passphrase=unified_form.cleaned_data.get('passphrase') or None,
+					parent_key_passphrase=parent_key_passphrase,
+					days_valid=days_valid,
+				)
+				messages.success(request, f'Intermediate CA "{child_ca.name}" created.')
+				return redirect('pki-ca-workbench', ca_id=child_ca.id)
+
+			signed_certificate = issue_signed_certificate(
+				owner=request.user,
+				issuer_authority=ca,
+				name=unified_form.cleaned_data['name'],
+				subject=subject_payload,
+				key_algorithm=unified_form.cleaned_data['key_algorithm'],
+				curve_name=unified_form.cleaned_data.get('curve_name') or 'secp256r1',
+				key_size=unified_form.cleaned_data.get('key_size') or 2048,
+				public_exponent=unified_form.cleaned_data.get('public_exponent') or 65537,
+				certificate_profile=selected_profile,
+				passphrase=unified_form.cleaned_data.get('passphrase') or None,
+				issuer_key_passphrase=unified_form.cleaned_data.get('issuer_key_passphrase') or None,
+				days_valid=unified_form.cleaned_data['days_valid'],
+				san_dns_names=unified_form.san_dns_name_list(),
+				key_usage=unified_form.key_usage_payload(),
+				extended_key_usages=unified_form.extended_key_usage_payload(),
+			)
+		except ValidationError as exc:
+			unified_form.add_error(None, exc.message)
+			return None
+
+		messages.success(request, f'Certificate "{signed_certificate.name}" issued.')
+		return redirect('pki-ca-workbench', ca_id=ca.id)
+
+	def _handle_delete_action(self, request: HttpRequest, ca: CertificateAuthority, action: str) -> HttpResponse | None:
+		if action == 'delete_certificate':
+			certificate_id = request.POST.get('certificate_id')
+			try:
+				certificate = SignedCertificate.objects.get(id=certificate_id, owner=request.user)
+			except SignedCertificate.DoesNotExist:
+				messages.error(request, 'Certificate not found.')
+				return None
+
+			try:
+				certificate.delete()
+			except ProtectedError:
+				messages.error(request, 'Cannot delete certificate because it is currently referenced.')
+				return None
+
+			messages.success(request, f'Certificate "{certificate.name}" deleted.')
+			return redirect('pki-ca-workbench', ca_id=ca.id)
+
+		if action == 'delete_csr':
+			csr_id = request.POST.get('csr_id')
+			try:
+				csr = CertificateSigningRequest.objects.get(id=csr_id, owner=request.user)
+			except CertificateSigningRequest.DoesNotExist:
+				messages.error(request, 'CSR not found.')
+				return None
+
+			csr_name = csr.name
+			csr.delete()
+			messages.success(request, f'CSR "{csr_name}" deleted.')
+			return redirect('pki-ca-workbench', ca_id=ca.id)
+
+		if action == 'delete_private_key':
+			private_key_id = request.POST.get('private_key_id')
+			try:
+				private_key = PrivateKey.objects.get(id=private_key_id, owner=request.user)
+			except PrivateKey.DoesNotExist:
+				messages.error(request, 'Private key not found.')
+				return None
+
+			try:
+				private_key.delete()
+			except ProtectedError:
+				messages.error(request, 'Cannot delete private key because it is currently referenced.')
+				return None
+
+			messages.success(request, f'Private key "{private_key.name}" deleted.')
+			return redirect('pki-ca-workbench', ca_id=ca.id)
+
+		if action != 'delete_ca':
+			return None
+
+		target_ca_id = request.POST.get('target_ca_id')
+		try:
+			target_ca = CertificateAuthority.objects.get(id=target_ca_id, owner=request.user)
+		except CertificateAuthority.DoesNotExist:
+			messages.error(request, 'Certificate authority not found.')
+			return None
+
+		target_name = target_ca.name
+		try:
+			target_ca.delete()
+		except ProtectedError:
+			messages.error(request, 'Cannot delete certificate authority because it has dependent records.')
+			return None
+
+		messages.success(request, f'Certificate authority "{target_name}" deleted.')
+		fallback_ca = CertificateAuthority.objects.filter(owner=request.user).order_by('depth', 'name').first()
+		if fallback_ca is not None:
+			return redirect('pki-ca-workbench', ca_id=fallback_ca.id)
+		return redirect('pki-create-root-ca')
+
 	def post(self, request: HttpRequest, ca_id: int) -> HttpResponse:
 		ca = self._get_ca(request, ca_id)
 		action = request.POST.get('action')
@@ -129,151 +290,33 @@ class CAWorkbenchView(LoginRequiredMixin, View):
 				prefix='unified',
 				profile_queryset=self._profile_queryset(request),
 			)
-			if unified_form.is_valid():
-				source_mode = unified_form.cleaned_data['source_mode']
-				create_ca = unified_form.cleaned_data.get('create_certificate_authority', False)
-				selected_profile = unified_form.cleaned_data.get('certificate_profile')
-				issuer_key_passphrase = unified_form.cleaned_data.get('issuer_key_passphrase') or None
-				# Backward-compatible fallback: CA mode signs with parent key; accept issuer field input too.
-				parent_key_passphrase = (
-					unified_form.cleaned_data.get('parent_key_passphrase')
-					or issuer_key_passphrase
-					or None
-				)
-
-				try:
-					if source_mode == 'csr':
-						signed_certificate = issue_signed_certificate_from_csr(
-							owner=request.user,
-							issuer_authority=ca,
-							name=unified_form.cleaned_data['name'],
-							csr_pem=unified_form.cleaned_data['csr_pem'],
-							certificate_profile=selected_profile,
-							issuer_key_passphrase=issuer_key_passphrase,
-							days_valid=unified_form.cleaned_data['days_valid'],
-							key_usage=unified_form.key_usage_payload(),
-							extended_key_usages=unified_form.extended_key_usage_payload(),
-						)
-						messages.success(request, f'CSR signed as certificate "{signed_certificate.name}".')
-						return redirect('pki-ca-workbench', ca_id=ca.id)
-
-					subject_payload = unified_form.subject_payload()
-					if selected_profile is not None:
-						subject_payload = {
-							**subject_payload,
-							**selected_profile.subject_payload(),
-						}
-
-					if create_ca:
-						key_algorithm = selected_profile.key_algorithm if selected_profile else unified_form.cleaned_data['key_algorithm']
-						curve_name = selected_profile.curve_name if selected_profile and selected_profile.curve_name else (unified_form.cleaned_data.get('curve_name') or 'secp256r1')
-						key_size = selected_profile.key_size if selected_profile and selected_profile.key_size else (unified_form.cleaned_data.get('key_size') or 2048)
-						public_exponent = selected_profile.public_exponent if selected_profile and selected_profile.public_exponent else (unified_form.cleaned_data.get('public_exponent') or 65537)
-						days_valid = selected_profile.days_valid if selected_profile and selected_profile.days_valid else unified_form.cleaned_data['days_valid']
-
-						child_ca = create_intermediate_certificate_authority(
-							owner=request.user,
-							parent_authority=ca,
-							name=unified_form.cleaned_data['name'],
-							subject=subject_payload,
-							key_algorithm=key_algorithm,
-							curve_name=curve_name,
-							key_size=key_size,
-							public_exponent=public_exponent,
-							passphrase=unified_form.cleaned_data.get('passphrase') or None,
-							parent_key_passphrase=parent_key_passphrase,
-							days_valid=days_valid,
-						)
-						messages.success(request, f'Intermediate CA "{child_ca.name}" created.')
-						return redirect('pki-ca-workbench', ca_id=child_ca.id)
-
-					signed_certificate = issue_signed_certificate(
-						owner=request.user,
-						issuer_authority=ca,
-						name=unified_form.cleaned_data['name'],
-						subject=subject_payload,
-						key_algorithm=unified_form.cleaned_data['key_algorithm'],
-						curve_name=unified_form.cleaned_data.get('curve_name') or 'secp256r1',
-						key_size=unified_form.cleaned_data.get('key_size') or 2048,
-						public_exponent=unified_form.cleaned_data.get('public_exponent') or 65537,
-						certificate_profile=selected_profile,
-						passphrase=unified_form.cleaned_data.get('passphrase') or None,
-						issuer_key_passphrase=unified_form.cleaned_data.get('issuer_key_passphrase') or None,
-						days_valid=unified_form.cleaned_data['days_valid'],
-						san_dns_names=unified_form.san_dns_name_list(),
-						key_usage=unified_form.key_usage_payload(),
-						extended_key_usages=unified_form.extended_key_usage_payload(),
-					)
-				except ValidationError as exc:
-					unified_form.add_error(None, exc.message)
-				else:
-					messages.success(request, f'Certificate "{signed_certificate.name}" issued.')
-					return redirect('pki-ca-workbench', ca_id=ca.id)
+			redirect_response = self._handle_unified_issue(request, ca, unified_form)
+			if redirect_response is not None:
+				return redirect_response
 
 		elif action == 'delete_certificate':
 			active_tab = 'manage'
-			certificate_id = request.POST.get('certificate_id')
-			try:
-				certificate = SignedCertificate.objects.get(id=certificate_id, owner=request.user)
-			except SignedCertificate.DoesNotExist:
-				messages.error(request, 'Certificate not found.')
-			else:
-				try:
-					certificate.delete()
-				except ProtectedError:
-					messages.error(request, 'Cannot delete certificate because it is currently referenced.')
-				else:
-					messages.success(request, f'Certificate "{certificate.name}" deleted.')
-					return redirect('pki-ca-workbench', ca_id=ca.id)
+			redirect_response = self._handle_delete_action(request, ca, action)
+			if redirect_response is not None:
+				return redirect_response
 
 		elif action == 'delete_csr':
 			active_tab = 'manage'
-			csr_id = request.POST.get('csr_id')
-			try:
-				csr = CertificateSigningRequest.objects.get(id=csr_id, owner=request.user)
-			except CertificateSigningRequest.DoesNotExist:
-				messages.error(request, 'CSR not found.')
-			else:
-				csr_name = csr.name
-				csr.delete()
-				messages.success(request, f'CSR "{csr_name}" deleted.')
-				return redirect('pki-ca-workbench', ca_id=ca.id)
+			redirect_response = self._handle_delete_action(request, ca, action)
+			if redirect_response is not None:
+				return redirect_response
 
 		elif action == 'delete_private_key':
 			active_tab = 'manage'
-			private_key_id = request.POST.get('private_key_id')
-			try:
-				private_key = PrivateKey.objects.get(id=private_key_id, owner=request.user)
-			except PrivateKey.DoesNotExist:
-				messages.error(request, 'Private key not found.')
-			else:
-				try:
-					private_key.delete()
-				except ProtectedError:
-					messages.error(request, 'Cannot delete private key because it is currently referenced.')
-				else:
-					messages.success(request, f'Private key "{private_key.name}" deleted.')
-					return redirect('pki-ca-workbench', ca_id=ca.id)
+			redirect_response = self._handle_delete_action(request, ca, action)
+			if redirect_response is not None:
+				return redirect_response
 
 		elif action == 'delete_ca':
 			active_tab = 'manage'
-			target_ca_id = request.POST.get('target_ca_id')
-			try:
-				target_ca = CertificateAuthority.objects.get(id=target_ca_id, owner=request.user)
-			except CertificateAuthority.DoesNotExist:
-				messages.error(request, 'Certificate authority not found.')
-			else:
-				target_name = target_ca.name
-				try:
-					target_ca.delete()
-				except ProtectedError:
-					messages.error(request, 'Cannot delete certificate authority because it has dependent records.')
-				else:
-					messages.success(request, f'Certificate authority "{target_name}" deleted.')
-					fallback_ca = CertificateAuthority.objects.filter(owner=request.user).order_by('depth', 'name').first()
-					if fallback_ca is not None:
-						return redirect('pki-ca-workbench', ca_id=fallback_ca.id)
-					return redirect('pki-create-root-ca')
+			redirect_response = self._handle_delete_action(request, ca, action)
+			if redirect_response is not None:
+				return redirect_response
 
 		if action == 'create_intermediate':
 			active_tab = 'intermediate'
