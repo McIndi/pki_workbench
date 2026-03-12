@@ -154,15 +154,34 @@
                         <div class="col-12 alert alert-danger mb-0">{{ unified_form.non_field_errors }}</div>
                     {% endif %}
 
+                    <div class="col-12 mb-3 p-3 bg-light border-start border-info border-4 rounded">
+                        <strong class="d-block mb-2">💡 Unified Workflow</strong>
+                        <small class="text-body-secondary">This form handles three scenarios: <strong>issue leaf certificates</strong>, <strong>sign existing CSRs</strong>, or <strong>create intermediate CAs</strong>. Passphrase requirements depend on your CA key encryption and chosen mode.</small>
+                    </div>
+
                     <div class="col-md-4"><label class="form-label">Certificate profile</label>{{ unified_form.certificate_profile }}</div>
-                    <div class="col-md-4"><label class="form-label">Mode</label>{{ unified_form.source_mode }}</div>
+                    <div class="col-md-4">
+                        <label class="form-label">Mode
+                            <span class="badge text-bg-info" title="Choose how to issue: generate a new key+cert, sign a CSR, or create a CA">?</span>
+                        </label>
+                        {{ unified_form.source_mode }}
+                        {% if unified_form.source_mode.help_text %}
+                            <small class="d-block text-body-secondary mt-1">{{ unified_form.source_mode.help_text|safe }}</small>
+                        {% endif %}
+                    </div>
                     <div class="col-md-4"><label class="form-label">Name</label>{{ unified_form.name }}</div>
                     <div class="col-md-4" data-profile-bound><label class="form-label">Valid days</label>{{ unified_form.days_valid }}</div>
                     <div class="col-md-4" data-profile-bound data-mode-generated><label class="form-label">Algorithm</label>{{ unified_form.key_algorithm }}</div>
                     <div class="col-md-4" data-mode-generated>
                         <div class="form-check mt-4">
                             {{ unified_form.create_certificate_authority }}
-                            <label class="form-check-label" for="{{ unified_form.create_certificate_authority.id_for_label }}">Create Certificate Authority</label>
+                            <label class="form-check-label" for="{{ unified_form.create_certificate_authority.id_for_label }}">
+                                Create Certificate Authority
+                                <span class="badge text-bg-info" title="Requires parent CA passphrase if encrypted">?</span>
+                            </label>
+                            {% if unified_form.create_certificate_authority.help_text %}
+                                <small class="d-block text-body-secondary mt-1">{{ unified_form.create_certificate_authority.help_text|safe }}</small>
+                            {% endif %}
                         </div>
                     </div>
 
@@ -175,9 +194,21 @@
                     <div class="col-md-4" data-rsa-field data-profile-bound data-mode-generated><label class="form-label">RSA key size</label>{{ unified_form.key_size }}</div>
                     <div class="col-md-4" data-rsa-field data-profile-bound data-mode-generated><label class="form-label">Exponent</label>{{ unified_form.public_exponent }}</div>
 
-                    <div class="col-md-4" data-mode-generated><label class="form-label">Issued key passphrase (optional)</label>{{ unified_form.passphrase }}</div>
-                    <div class="col-md-4" data-mode-generated data-leaf-options><label class="form-label">Issuer key passphrase (optional)</label>{{ unified_form.issuer_key_passphrase }}</div>
-                    <div class="col-md-4" data-mode-generated data-create-ca-options><label class="form-label">Parent key passphrase (optional)</label>{{ unified_form.parent_key_passphrase }}</div>
+                    <div class="col-md-4" data-mode-generated>
+                        <label class="form-label">Issued key passphrase (optional)</label>
+                        {{ unified_form.passphrase }}
+                        {% if unified_form.passphrase.help_text %}<small class="d-block text-body-secondary mt-1">{{ unified_form.passphrase.help_text|safe }}</small>{% endif %}
+                    </div>
+                    <div class="col-md-4" data-mode-generated data-leaf-options>
+                        <label class="form-label">Issuer key passphrase (optional)</label>
+                        {{ unified_form.issuer_key_passphrase }}
+                        {% if unified_form.issuer_key_passphrase.help_text %}<small class="d-block text-body-secondary mt-1">{{ unified_form.issuer_key_passphrase.help_text|safe }}</small>{% endif %}
+                    </div>
+                    <div class="col-md-4" data-mode-generated data-create-ca-options>
+                        <label class="form-label">Parent key passphrase (optional)</label>
+                        {{ unified_form.parent_key_passphrase }}
+                        {% if unified_form.parent_key_passphrase.help_text %}<small class="d-block text-body-secondary mt-1">{{ unified_form.parent_key_passphrase.help_text|safe }}</small>{% endif %}
+                    </div>
 
                     <div class="col-md-12" data-mode-generated><label class="form-label">SAN DNS names (optional)</label>{{ unified_form.san_dns_names }}</div>
 

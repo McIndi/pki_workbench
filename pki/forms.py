@@ -111,8 +111,16 @@ class IntermediateCAForm(BasePKIForm):
     curve_name = forms.ChoiceField(choices=ALL_CURVE_CHOICES, required=False, initial='secp256r1')
     key_size = forms.IntegerField(required=False, min_value=2048, initial=2048)
     public_exponent = forms.IntegerField(required=False, initial=65537)
-    passphrase = forms.CharField(required=False, widget=forms.PasswordInput(render_value=False))
-    parent_key_passphrase = forms.CharField(required=False, widget=forms.PasswordInput(render_value=False))
+    passphrase = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(render_value=False),
+        help_text='Password to protect the newly generated private key (optional, can be left blank)',
+    )
+    parent_key_passphrase = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(render_value=False),
+        help_text='Password to unlock the parent CA\'s private key when creating a new intermediate CA. Required only if the parent CA key is encrypted.',
+    )
 
     def clean(self):
         cleaned = super().clean()
@@ -147,8 +155,16 @@ class IssueCertificateForm(BasePKIForm):
     curve_name = forms.ChoiceField(choices=ALL_CURVE_CHOICES, required=False, initial='secp256r1')
     key_size = forms.IntegerField(required=False, min_value=2048, initial=2048)
     public_exponent = forms.IntegerField(required=False, initial=65537)
-    passphrase = forms.CharField(required=False, widget=forms.PasswordInput(render_value=False))
-    issuer_key_passphrase = forms.CharField(required=False, widget=forms.PasswordInput(render_value=False))
+    passphrase = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(render_value=False),
+        help_text='Password to protect the newly generated private key (optional, can be left blank)',
+    )
+    issuer_key_passphrase = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(render_value=False),
+        help_text='Password to unlock the issuing CA\'s private key for signing. Required only if the issuing CA key is encrypted.',
+    )
     san_dns_names = forms.CharField(required=False, help_text='Comma-separated DNS names')
 
     ku_digital_signature = forms.BooleanField(required=False, initial=True)
@@ -231,10 +247,26 @@ class UnifiedIssueForm(IssueCertificateForm):
         ('csr', 'Sign pasted CSR'),
     ]
 
-    source_mode = forms.ChoiceField(choices=SOURCE_MODE_CHOICES, initial='generate')
-    create_certificate_authority = forms.BooleanField(required=False, initial=False)
-    csr_pem = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 8}), help_text='PEM-encoded CSR')
-    parent_key_passphrase = forms.CharField(required=False, widget=forms.PasswordInput(render_value=False))
+    source_mode = forms.ChoiceField(
+        choices=SOURCE_MODE_CHOICES,
+        initial='generate',
+        help_text='Choose "Generate key + certificate" to create new certificates or intermediate CAs. Choose "Sign pasted CSR" to sign existing certificate signing requests.',
+    )
+    create_certificate_authority = forms.BooleanField(
+        required=False,
+        initial=False,
+        help_text='Check this box to create a new intermediate CA instead of issuing a leaf certificate.',
+    )
+    csr_pem = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'rows': 8}),
+        help_text='PEM-encoded CSR',
+    )
+    parent_key_passphrase = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(render_value=False),
+        help_text='Password to unlock the parent CA\'s private key when creating a new intermediate CA. Required only if the parent CA key is encrypted.',
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
