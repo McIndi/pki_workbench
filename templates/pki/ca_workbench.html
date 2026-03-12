@@ -154,9 +154,9 @@
                         <div class="col-12 alert alert-danger mb-0">{{ unified_form.non_field_errors }}</div>
                     {% endif %}
 
-                    <div class="col-12 mb-3 p-3 bg-light border-start border-info border-4 rounded">
+                    <div class="col-12 mb-3 p-3 bg-body-tertiary border-start border-info border-4 rounded">
                         <strong class="d-block mb-2">💡 Unified Workflow</strong>
-                        <small class="text-body-secondary">This form handles three scenarios: <strong>issue leaf certificates</strong>, <strong>sign existing CSRs</strong>, or <strong>create intermediate CAs</strong>. Passphrase requirements depend on your CA key encryption and chosen mode.</small>
+                        <small class="text-body">This form handles three scenarios: <strong>issue leaf certificates</strong>, <strong>sign existing CSRs</strong>, or <strong>create intermediate CAs</strong>. Passphrase requirements depend on your CA key encryption and chosen mode.</small>
                     </div>
 
                     <div class="col-md-4"><label class="form-label">Certificate profile</label>{{ unified_form.certificate_profile }}</div>
