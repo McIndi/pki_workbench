@@ -6,7 +6,12 @@ from cryptography import x509
 
 from . import services
 from .models import CertificateAuthority, CertificateProfile, CertificateSigningRequest, PrivateKey, SignedCertificate
-from .workflows import create_intermediate_certificate_authority, create_root_certificate_authority, issue_signed_certificate
+from .workflows import (
+    create_intermediate_certificate_authority,
+    create_root_certificate_authority,
+    issue_signed_certificate,
+    issue_signed_certificate_from_csr,
+)
 
 
 class CertificateAuthorityWorkflowTests(TestCase):
@@ -210,3 +215,61 @@ class CertificateAuthorityWorkflowTests(TestCase):
         self.assertEqual(issued.csr.subject['organization_name'], 'Pinned Org')
         self.assertEqual(issued.csr.subject['organizational_unit_name'], 'Security')
         self.assertEqual(issued.csr.subject['state_or_province_name'], 'California')
+
+    def test_create_intermediate_requires_parent_passphrase_when_parent_key_encrypted(self):
+        root = create_root_certificate_authority(
+            owner=self.user_one,
+            name='Encrypted Root',
+            subject=self.root_subject,
+            certification_depth=3,
+            passphrase='root-passphrase',
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            'Parent key passphrase is required because the signing certificate authority key is encrypted.',
+        ):
+            create_intermediate_certificate_authority(
+                owner=self.user_one,
+                parent_authority=root,
+                name='Missing Parent Passphrase Intermediate',
+                subject={**self.root_subject, 'common_name': 'missing-parent-passphrase.example.com'},
+                parent_key_passphrase=None,
+            )
+
+    def test_issue_certificate_requires_issuer_passphrase_when_issuer_key_encrypted(self):
+        root = create_root_certificate_authority(
+            owner=self.user_one,
+            name='Encrypted Issuer Root',
+            subject=self.root_subject,
+            certification_depth=3,
+            passphrase='issuer-passphrase',
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            'Issuer key passphrase is required because the signing certificate authority key is encrypted.',
+        ):
+            issue_signed_certificate(
+                owner=self.user_one,
+                issuer_authority=root,
+                name='Missing Issuer Passphrase Leaf',
+                subject={**self.root_subject, 'common_name': 'missing-issuer-passphrase.example.com'},
+                issuer_key_passphrase=None,
+            )
+
+    def test_issue_from_csr_returns_validation_error_for_invalid_csr(self):
+        root = create_root_certificate_authority(
+            owner=self.user_one,
+            name='Invalid CSR Root',
+            subject=self.root_subject,
+            certification_depth=3,
+        )
+
+        with self.assertRaisesMessage(ValidationError, 'CSR PEM is invalid:'):
+            issue_signed_certificate_from_csr(
+                owner=self.user_one,
+                issuer_authority=root,
+                name='Broken CSR',
+                csr_pem='-----BEGIN CERTIFICATE REQUEST-----\nnot-a-valid-csr\n-----END CERTIFICATE REQUEST-----',
+            )

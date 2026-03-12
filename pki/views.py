@@ -133,6 +133,13 @@ class CAWorkbenchView(LoginRequiredMixin, View):
 				source_mode = unified_form.cleaned_data['source_mode']
 				create_ca = unified_form.cleaned_data.get('create_certificate_authority', False)
 				selected_profile = unified_form.cleaned_data.get('certificate_profile')
+				issuer_key_passphrase = unified_form.cleaned_data.get('issuer_key_passphrase') or None
+				# Backward-compatible fallback: CA mode signs with parent key; accept issuer field input too.
+				parent_key_passphrase = (
+					unified_form.cleaned_data.get('parent_key_passphrase')
+					or issuer_key_passphrase
+					or None
+				)
 
 				try:
 					if source_mode == 'csr':
@@ -142,7 +149,7 @@ class CAWorkbenchView(LoginRequiredMixin, View):
 							name=unified_form.cleaned_data['name'],
 							csr_pem=unified_form.cleaned_data['csr_pem'],
 							certificate_profile=selected_profile,
-							issuer_key_passphrase=unified_form.cleaned_data.get('issuer_key_passphrase') or None,
+							issuer_key_passphrase=issuer_key_passphrase,
 							days_valid=unified_form.cleaned_data['days_valid'],
 							key_usage=unified_form.key_usage_payload(),
 							extended_key_usages=unified_form.extended_key_usage_payload(),
@@ -174,7 +181,7 @@ class CAWorkbenchView(LoginRequiredMixin, View):
 							key_size=key_size,
 							public_exponent=public_exponent,
 							passphrase=unified_form.cleaned_data.get('passphrase') or None,
-							parent_key_passphrase=unified_form.cleaned_data.get('parent_key_passphrase') or None,
+							parent_key_passphrase=parent_key_passphrase,
 							days_valid=days_valid,
 						)
 						messages.success(request, f'Intermediate CA "{child_ca.name}" created.')

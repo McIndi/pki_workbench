@@ -283,6 +283,137 @@ class PKIViewsTests(TestCase):
         self.assertIsNone(cert.private_key)
         self.assertIsNotNone(cert.csr)
 
+    def test_workbench_unified_create_ca_accepts_issuer_passphrase_fallback(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Unified Fallback Root',
+            subject=self.subject,
+            certification_depth=3,
+            passphrase='root-passphrase',
+        )
+
+        response = self.client.post(
+            reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
+            data={
+                'action': 'unified_issue',
+                'unified-source_mode': 'generate',
+                'unified-certificate_profile': '',
+                'unified-name': 'Fallback Child CA',
+                'unified-create_certificate_authority': 'on',
+                'unified-days_valid': 365,
+                'unified-key_algorithm': 'rsa',
+                'unified-curve_name': 'secp256r1',
+                'unified-key_size': 2048,
+                'unified-public_exponent': 65537,
+                'unified-passphrase': '',
+                'unified-issuer_key_passphrase': 'root-passphrase',
+                'unified-parent_key_passphrase': '',
+                'unified-san_dns_names': '',
+                'unified-country_name': 'US',
+                'unified-state_or_province_name': 'New York',
+                'unified-locality_name': 'New York',
+                'unified-organization_name': 'PKI Workbench',
+                'unified-organizational_unit_name': 'Security',
+                'unified-common_name': 'Fallback Child CA',
+                'unified-email_address': '',
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(CertificateAuthority.objects.filter(owner=self.user, name='Fallback Child CA').exists())
+
+    def test_workbench_unified_create_ca_requires_parent_passphrase_when_parent_key_encrypted(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Encrypted Parent Root',
+            subject=self.subject,
+            certification_depth=3,
+            passphrase='root-passphrase',
+        )
+
+        response = self.client.post(
+            reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
+            data={
+                'action': 'unified_issue',
+                'unified-source_mode': 'generate',
+                'unified-certificate_profile': '',
+                'unified-name': 'Missing Parent Passphrase Child CA',
+                'unified-create_certificate_authority': 'on',
+                'unified-days_valid': 365,
+                'unified-key_algorithm': 'rsa',
+                'unified-curve_name': 'secp256r1',
+                'unified-key_size': 2048,
+                'unified-public_exponent': 65537,
+                'unified-passphrase': '',
+                'unified-issuer_key_passphrase': '',
+                'unified-parent_key_passphrase': '',
+                'unified-san_dns_names': '',
+                'unified-country_name': 'US',
+                'unified-state_or_province_name': 'New York',
+                'unified-locality_name': 'New York',
+                'unified-organization_name': 'PKI Workbench',
+                'unified-organizational_unit_name': 'Security',
+                'unified-common_name': 'missing-parent-passphrase.example.com',
+                'unified-email_address': '',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            'Parent key passphrase is required because the signing certificate authority key is encrypted.',
+        )
+        self.assertFalse(
+            CertificateAuthority.objects.filter(owner=self.user, name='Missing Parent Passphrase Child CA').exists()
+        )
+
+    def test_workbench_unified_csr_requires_issuer_passphrase_when_issuer_key_encrypted(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Encrypted Issuer Root',
+            subject=self.subject,
+            certification_depth=3,
+            passphrase='issuer-passphrase',
+        )
+        requester_key_pem = services.create_private_key(key_algorithm='rsa', key_size=2048)
+        requester_csr_pem = services.create_csr(
+            private_key_pem=requester_key_pem,
+            subject={
+                'country_name': 'US',
+                'state_or_province_name': 'New York',
+                'locality_name': 'New York',
+                'organization_name': 'PKI Workbench',
+                'common_name': 'encrypted-issuer.example.com',
+            },
+        )
+
+        response = self.client.post(
+            reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
+            data={
+                'action': 'unified_issue',
+                'unified-source_mode': 'csr',
+                'unified-certificate_profile': '',
+                'unified-name': 'Missing Issuer Passphrase CSR',
+                'unified-csr_pem': requester_csr_pem.decode('utf-8'),
+                'unified-issuer_key_passphrase': '',
+                'unified-days_valid': 365,
+                'unified-ku_digital_signature': 'on',
+                'unified-ku_key_encipherment': 'on',
+                'unified-ku_critical': 'on',
+                'unified-eku_server_auth': 'on',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            'Issuer key passphrase is required because the signing certificate authority key is encrypted.',
+        )
+        self.assertFalse(SignedCertificate.objects.filter(owner=self.user, name='Missing Issuer Passphrase CSR').exists())
+
     def test_workbench_manage_delete_certificate_action(self):
         self.client.force_login(self.user)
         root = create_root_certificate_authority(

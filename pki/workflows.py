@@ -133,6 +133,10 @@ def create_intermediate_certificate_authority(
         raise ValidationError(
             'Cannot create intermediate certificate authority beyond root certification depth.'
         )
+    if parent_authority.private_key.is_encrypted and not parent_key_passphrase:
+        raise ValidationError(
+            'Parent key passphrase is required because the signing certificate authority key is encrypted.'
+        )
 
     private_key_pem = services.create_private_key(
         passphrase=passphrase,
@@ -148,15 +152,18 @@ def create_intermediate_certificate_authority(
         passphrase=passphrase,
     )
 
-    certificate_pem = services.sign_certificate(
-        csr_pem=csr_pem,
-        ca_cert_pem=parent_authority.certificate.certificate_pem.encode('utf-8'),
-        ca_private_key_pem=parent_authority.private_key.private_key_pem.encode('utf-8'),
-        ca_passphrase=parent_key_passphrase,
-        days_valid=days_valid,
-        is_ca=True,
-        path_length=_remaining_path_length(root.certification_depth, new_depth),
-    )
+    try:
+        certificate_pem = services.sign_certificate(
+            csr_pem=csr_pem,
+            ca_cert_pem=parent_authority.certificate.certificate_pem.encode('utf-8'),
+            ca_private_key_pem=parent_authority.private_key.private_key_pem.encode('utf-8'),
+            ca_passphrase=parent_key_passphrase,
+            days_valid=days_valid,
+            is_ca=True,
+            path_length=_remaining_path_length(root.certification_depth, new_depth),
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValidationError(f'Unable to sign intermediate certificate authority: {exc}') from exc
 
     private_key = PrivateKey.objects.create(
         name=f'{name} key',
@@ -223,6 +230,10 @@ def issue_signed_certificate(
         raise ValidationError('Owner is required.')
     if issuer_authority.owner != owner:
         raise ValidationError('Issuer certificate authority does not belong to this owner.')
+    if issuer_authority.private_key.is_encrypted and not issuer_key_passphrase:
+        raise ValidationError(
+            'Issuer key passphrase is required because the signing certificate authority key is encrypted.'
+        )
 
     if certificate_profile is not None:
         if certificate_profile.owner not in {None, owner}:
@@ -254,16 +265,19 @@ def issue_signed_certificate(
         san_dns_names=san_dns_names,
     )
 
-    certificate_pem = services.sign_certificate(
-        csr_pem=csr_pem,
-        ca_cert_pem=issuer_authority.certificate.certificate_pem.encode('utf-8'),
-        ca_private_key_pem=issuer_authority.private_key.private_key_pem.encode('utf-8'),
-        ca_passphrase=issuer_key_passphrase,
-        days_valid=days_valid,
-        is_ca=False,
-        key_usage=key_usage,
-        extended_key_usages=extended_key_usages,
-    )
+    try:
+        certificate_pem = services.sign_certificate(
+            csr_pem=csr_pem,
+            ca_cert_pem=issuer_authority.certificate.certificate_pem.encode('utf-8'),
+            ca_private_key_pem=issuer_authority.private_key.private_key_pem.encode('utf-8'),
+            ca_passphrase=issuer_key_passphrase,
+            days_valid=days_valid,
+            is_ca=False,
+            key_usage=key_usage,
+            extended_key_usages=extended_key_usages,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValidationError(f'Unable to sign certificate: {exc}') from exc
 
     private_key = PrivateKey.objects.create(
         name=f'{name} key',
@@ -314,9 +328,16 @@ def issue_signed_certificate_from_csr(
         raise ValidationError('Owner is required.')
     if issuer_authority.owner != owner:
         raise ValidationError('Issuer certificate authority does not belong to this owner.')
+    if issuer_authority.private_key.is_encrypted and not issuer_key_passphrase:
+        raise ValidationError(
+            'Issuer key passphrase is required because the signing certificate authority key is encrypted.'
+        )
 
     csr_bytes = csr_pem.encode('utf-8') if isinstance(csr_pem, str) else csr_pem
-    parsed_csr = services.parse_csr_info(csr_bytes)
+    try:
+        parsed_csr = services.parse_csr_info(csr_bytes)
+    except ValueError as exc:
+        raise ValidationError(f'CSR PEM is invalid: {exc}') from exc
 
     if certificate_profile is not None:
         if certificate_profile.owner not in {None, owner}:
@@ -326,16 +347,19 @@ def issue_signed_certificate_from_csr(
         extended_key_usages = certificate_profile.extended_key_usage_payload()
         _validate_profile_subject_constraints(parsed_csr['subject'], certificate_profile)
 
-    certificate_pem = services.sign_certificate(
-        csr_pem=csr_bytes,
-        ca_cert_pem=issuer_authority.certificate.certificate_pem.encode('utf-8'),
-        ca_private_key_pem=issuer_authority.private_key.private_key_pem.encode('utf-8'),
-        ca_passphrase=issuer_key_passphrase,
-        days_valid=days_valid,
-        is_ca=False,
-        key_usage=key_usage,
-        extended_key_usages=extended_key_usages,
-    )
+    try:
+        certificate_pem = services.sign_certificate(
+            csr_pem=csr_bytes,
+            ca_cert_pem=issuer_authority.certificate.certificate_pem.encode('utf-8'),
+            ca_private_key_pem=issuer_authority.private_key.private_key_pem.encode('utf-8'),
+            ca_passphrase=issuer_key_passphrase,
+            days_valid=days_valid,
+            is_ca=False,
+            key_usage=key_usage,
+            extended_key_usages=extended_key_usages,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValidationError(f'Unable to sign CSR: {exc}') from exc
 
     csr_record = CertificateSigningRequest.objects.create(
         name=f'{name} csr',

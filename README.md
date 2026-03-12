@@ -62,7 +62,7 @@ It is suitable for development, testing, and internal prototyping. Before produc
 1. Clone and enter the project:
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/McIndi/pki_workbench.git
 cd pki_workbench
 ```
 

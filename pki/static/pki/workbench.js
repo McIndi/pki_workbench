@@ -211,9 +211,11 @@ function updateUnifiedMode(container) {
   const createCaField = getFieldBySuffix(container, 'create_certificate_authority');
   const generatedSections = container.querySelectorAll('[data-mode-generated]');
   const csrSections = container.querySelectorAll('[data-mode-csr]');
+  const leafOnlySections = container.querySelectorAll('[data-leaf-options]');
   const createCaSections = container.querySelectorAll('[data-create-ca-options]');
 
   const isCsrMode = sourceModeField.value === 'csr';
+  const isCreateCa = !isCsrMode && createCaField && createCaField.checked;
 
   generatedSections.forEach((section) => {
     section.style.display = isCsrMode ? 'none' : '';
@@ -223,7 +225,11 @@ function updateUnifiedMode(container) {
     section.style.display = isCsrMode ? '' : 'none';
   });
 
-  const showCreateCaOptions = !isCsrMode && createCaField && createCaField.checked;
+  leafOnlySections.forEach((section) => {
+    section.style.display = isCreateCa ? 'none' : '';
+  });
+
+  const showCreateCaOptions = isCreateCa;
   createCaSections.forEach((section) => {
     section.style.display = showCreateCaOptions ? '' : 'none';
   });
