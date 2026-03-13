@@ -1,4 +1,5 @@
 from django.core.exceptions import ValidationError
+from django.db.models import ProtectedError
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import serializers, status, viewsets
@@ -16,7 +17,7 @@ from .forms import (
     RootCAForm,
     SignCSRForm,
 )
-from .models import CertificateAuthority, CertificateProfile, SignedCertificate
+from .models import CertificateAuthority, CertificateProfile, CertificateSigningRequest, PrivateKey, SignedCertificate
 from .workflows import (
     create_certificate_profile_from_certificate,
     create_intermediate_certificate_authority,
@@ -55,6 +56,10 @@ class APIRootIndexAPIView(APIView):
                     'create_intermediate_ca': request.build_absolute_uri(reverse('api-workflow-intermediate-ca')),
                     'import_ca': request.build_absolute_uri(reverse('api-workflow-import-ca')),
                     'issue_certificate': request.build_absolute_uri(reverse('api-workflow-certificate')),
+                    'delete_certificate': request.build_absolute_uri(reverse('api-workflow-delete-certificate')),
+                    'delete_ca': request.build_absolute_uri(reverse('api-workflow-delete-ca')),
+                    'delete_private_key': request.build_absolute_uri(reverse('api-workflow-delete-private-key')),
+                    'delete_csr': request.build_absolute_uri(reverse('api-workflow-delete-csr')),
                     'derive_profile_from_certificate': request.build_absolute_uri(
                         reverse('api-workflow-profile-from-certificate')
                     ),
@@ -264,6 +269,7 @@ class IntermediateWorkflowSerializer(serializers.Serializer):
     state_or_province_name = serializers.CharField(max_length=128)
     locality_name = serializers.CharField(max_length=128)
     organization_name = serializers.CharField(max_length=255)
+    organizational_unit_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
     common_name = serializers.CharField(max_length=255)
     email_address = serializers.EmailField(required=False, allow_blank=True)
     days_valid = serializers.IntegerField(min_value=1, default=1825)
@@ -495,3 +501,108 @@ class DeriveProfileFromCertificateWorkflowAPIView(APIView):
             return Response({'detail': exc.message}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(CertificateProfileSerializer(profile).data, status=status.HTTP_201_CREATED)
+
+
+class DeleteCertificateWorkflowSerializer(serializers.Serializer):
+    certificate_id = serializers.IntegerField()
+
+
+class DeleteCertificateWorkflowAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = DeleteCertificateWorkflowSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        certificate_id = serializer.validated_data['certificate_id']
+        try:
+            certificate = SignedCertificate.objects.get(id=certificate_id, owner=request.user)
+        except SignedCertificate.DoesNotExist:
+            return Response({'detail': 'Certificate not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            certificate.delete()
+        except ProtectedError:
+            return Response(
+                {'detail': 'Cannot delete certificate because it is currently referenced.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response({'detail': 'Certificate deleted successfully.'}, status=status.HTTP_200_OK)
+
+
+class DeleteCAWorkflowSerializer(serializers.Serializer):
+    target_ca_id = serializers.IntegerField()
+
+
+class DeleteCAWorkflowAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = DeleteCAWorkflowSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        target_ca_id = serializer.validated_data['target_ca_id']
+        try:
+            target_ca = CertificateAuthority.objects.get(id=target_ca_id, owner=request.user)
+        except CertificateAuthority.DoesNotExist:
+            return Response({'detail': 'Certificate authority not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            target_ca.delete()
+        except ProtectedError:
+            return Response(
+                {'detail': 'Cannot delete certificate authority because it has dependent records.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response({'detail': 'Certificate authority deleted successfully.'}, status=status.HTTP_200_OK)
+
+
+class DeletePrivateKeyWorkflowSerializer(serializers.Serializer):
+    private_key_id = serializers.IntegerField()
+
+
+class DeletePrivateKeyWorkflowAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = DeletePrivateKeyWorkflowSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        private_key_id = serializer.validated_data['private_key_id']
+        try:
+            private_key = PrivateKey.objects.get(id=private_key_id, owner=request.user)
+        except PrivateKey.DoesNotExist:
+            return Response({'detail': 'Private key not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            private_key.delete()
+        except ProtectedError:
+            return Response(
+                {'detail': 'Cannot delete private key because it is currently referenced.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response({'detail': 'Private key deleted successfully.'}, status=status.HTTP_200_OK)
+
+
+class DeleteCSRWorkflowSerializer(serializers.Serializer):
+    csr_id = serializers.IntegerField()
+
+
+class DeleteCSRWorkflowAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = DeleteCSRWorkflowSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        csr_id = serializer.validated_data['csr_id']
+        try:
+            csr = CertificateSigningRequest.objects.get(id=csr_id, owner=request.user)
+        except CertificateSigningRequest.DoesNotExist:
+            return Response({'detail': 'CSR not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        csr.delete()
+        return Response({'detail': 'CSR deleted successfully.'}, status=status.HTTP_200_OK)

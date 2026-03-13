@@ -147,12 +147,21 @@
     <div class="card-body">
         <div class="tab-content">
             <div class="tab-pane fade {% if active_tab == 'unified' %}show active{% endif %}" id="unified-pane" role="tabpanel">
-                <form method="post" class="row g-3" data-key-config-container>
+                <form
+                    method="post"
+                    class="row g-3"
+                    data-key-config-container
+                    data-unified-form
+                    data-ca-id="{{ ca.id }}"
+                    data-endpoint-issue="{% url 'api-workflow-certificate' %}"
+                    data-endpoint-intermediate="{% url 'api-workflow-intermediate-ca' %}"
+                >
                     {% csrf_token %}
                     <input type="hidden" name="action" value="unified_issue">
                     {% if unified_form.non_field_errors %}
                         <div class="col-12 alert alert-danger mb-0">{{ unified_form.non_field_errors }}</div>
                     {% endif %}
+                    <div class="col-12 d-none" data-unified-feedback></div>
 
                     <div class="col-12 mb-3 p-3 bg-body-tertiary border-start border-info border-4 rounded">
                         <strong class="d-block mb-2">💡 Unified Workflow</strong>
@@ -255,6 +264,7 @@
 
             <div class="tab-pane fade {% if active_tab == 'manage' %}show active{% endif %}" id="manage-pane" role="tabpanel">
                 <div class="alert alert-warning">Deletion is permanent and may be blocked when a record is still referenced.</div>
+                <div class="alert d-none" data-manage-feedback></div>
 
                 <h3 class="h6 text-uppercase text-body-secondary mb-2">Certificates</h3>
                 <ul class="list-group list-group-flush mb-3">
@@ -264,7 +274,15 @@
                                 <a class="text-decoration-none" href="{% url 'pki-issued-certificate-detail' cert.id %}">{{ cert.name }}</a>
                                 <div class="small text-body-secondary">Serial {{ cert.serial_number }}</div>
                             </div>
-                            <form method="post" class="m-0" data-confirm-delete data-confirm-message="Delete certificate '{{ cert.name|escapejs }}'? This cannot be undone.">
+                            <form
+                                method="post"
+                                class="m-0"
+                                data-confirm-delete
+                                data-api-delete-form
+                                data-api-endpoint="{% url 'api-workflow-delete-certificate' %}"
+                                data-success-message="Certificate deleted."
+                                data-confirm-message="Delete certificate '{{ cert.name|escapejs }}'? This cannot be undone."
+                            >
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="delete_certificate">
                                 <input type="hidden" name="certificate_id" value="{{ cert.id }}">
@@ -287,7 +305,15 @@
                             {% if authority.id == ca.id %}
                                 <button type="button" class="btn btn-sm btn-outline-secondary" disabled>Current</button>
                             {% else %}
-                                <form method="post" class="m-0" data-confirm-delete data-confirm-message="Delete certificate authority '{{ authority.name|escapejs }}'? This cannot be undone.">
+                                <form
+                                    method="post"
+                                    class="m-0"
+                                    data-confirm-delete
+                                    data-api-delete-form
+                                    data-api-endpoint="{% url 'api-workflow-delete-ca' %}"
+                                    data-success-message="Certificate authority deleted."
+                                    data-confirm-message="Delete certificate authority '{{ authority.name|escapejs }}'? This cannot be undone."
+                                >
                                     {% csrf_token %}
                                     <input type="hidden" name="action" value="delete_ca">
                                     <input type="hidden" name="target_ca_id" value="{{ authority.id }}">
@@ -308,7 +334,15 @@
                                 <span class="fw-medium">{{ key.name }}</span>
                                 <div class="small text-body-secondary">{{ key.algorithm|upper }}</div>
                             </div>
-                            <form method="post" class="m-0" data-confirm-delete data-confirm-message="Delete private key '{{ key.name|escapejs }}'? This cannot be undone.">
+                            <form
+                                method="post"
+                                class="m-0"
+                                data-confirm-delete
+                                data-api-delete-form
+                                data-api-endpoint="{% url 'api-workflow-delete-private-key' %}"
+                                data-success-message="Private key deleted."
+                                data-confirm-message="Delete private key '{{ key.name|escapejs }}'? This cannot be undone."
+                            >
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="delete_private_key">
                                 <input type="hidden" name="private_key_id" value="{{ key.id }}">
@@ -328,7 +362,15 @@
                                 <span class="fw-medium">{{ csr.name }}</span>
                                 <div class="small text-body-secondary">{% if csr.private_key %}Generated{% else %}Imported / External{% endif %}</div>
                             </div>
-                            <form method="post" class="m-0" data-confirm-delete data-confirm-message="Delete CSR '{{ csr.name|escapejs }}'? This cannot be undone.">
+                            <form
+                                method="post"
+                                class="m-0"
+                                data-confirm-delete
+                                data-api-delete-form
+                                data-api-endpoint="{% url 'api-workflow-delete-csr' %}"
+                                data-success-message="CSR deleted."
+                                data-confirm-message="Delete CSR '{{ csr.name|escapejs }}'? This cannot be undone."
+                            >
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="delete_csr">
                                 <input type="hidden" name="csr_id" value="{{ csr.id }}">
@@ -342,9 +384,13 @@
             </div>
 
             <div class="tab-pane fade {% if active_tab == 'profile' %}show active{% endif %}" id="profile-pane" role="tabpanel">
-                <form method="post" class="row g-3" data-key-config-container>
+                <form method="post" class="row g-3" data-key-config-container
+                      data-profile-form
+                      data-api-endpoint="{% url 'api-profiles-list' %}"
+                      data-form-prefix="profile">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="create_certificate_profile">
+                    <div class="col-12 d-none" data-profile-feedback></div>
                     {% if profile_form.non_field_errors %}
                         <div class="col-12 alert alert-danger mb-0">{{ profile_form.non_field_errors }}</div>
                     {% endif %}

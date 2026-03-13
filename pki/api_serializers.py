@@ -113,3 +113,15 @@ class CertificateProfileSerializer(serializers.ModelSerializer):
             'created_at',
         ]
         read_only_fields = ['id', 'created_at']
+
+    def validate_name(self, value):
+        request = self.context.get('request')
+        if request and request.user:
+            qs = CertificateProfile.objects.filter(owner=request.user, name=value)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError(
+                    'A profile with this name already exists.'
+                )
+        return value

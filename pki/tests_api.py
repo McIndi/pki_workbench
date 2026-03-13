@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from . import services
-from .models import CertificateProfile, SignedCertificate
+from .models import CertificateAuthority, CertificateProfile, CertificateSigningRequest, PrivateKey, SignedCertificate
 from .workflows import create_root_certificate_authority, issue_signed_certificate
 
 
@@ -51,6 +51,10 @@ class PKIApiTests(APITestCase):
         self.assertIn('/api/workflows/intermediate-cas/', paths)
         self.assertIn('/api/workflows/import-ca/', paths)
         self.assertIn('/api/workflows/certificates/', paths)
+        self.assertIn('/api/workflows/delete-certificate/', paths)
+        self.assertIn('/api/workflows/delete-ca/', paths)
+        self.assertIn('/api/workflows/delete-private-key/', paths)
+        self.assertIn('/api/workflows/delete-csr/', paths)
         self.assertIn('/api/workflows/profiles/from-certificate/', paths)
 
     def test_dashboard_returns_counts_and_tree(self):
@@ -137,6 +141,10 @@ class PKIApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('import_ca', response.data['workflows'])
         self.assertIn('sign_csr_template', response.data['cas'])
+        self.assertIn('delete_certificate', response.data['workflows'])
+        self.assertIn('delete_ca', response.data['workflows'])
+        self.assertIn('delete_private_key', response.data['workflows'])
+        self.assertIn('delete_csr', response.data['workflows'])
 
     def test_import_ca_workflow_endpoint(self):
         self.client.force_authenticate(self.user)
@@ -240,4 +248,67 @@ class PKIApiTests(APITestCase):
             format='json',
         )
 
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_delete_workflow_endpoints(self):
+        self.client.force_authenticate(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Delete Workflow Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+
+        certificate = issue_signed_certificate(
+            owner=self.user,
+            issuer_authority=root,
+            name='Delete Workflow Cert',
+            subject={**self.subject, 'common_name': 'delete-workflow.example.com'},
+        )
+        private_key = PrivateKey.objects.create(
+            owner=self.user,
+            name='Delete Workflow Private Key',
+            algorithm='rsa',
+            key_size=2048,
+            private_key_pem='-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n',
+        )
+        csr = CertificateSigningRequest.objects.create(
+            owner=self.user,
+            name='Delete Workflow CSR',
+            subject={'common_name': 'delete-workflow-csr.example.com'},
+            csr_pem='-----BEGIN CERTIFICATE REQUEST-----\nabc\n-----END CERTIFICATE REQUEST-----\n',
+        )
+
+        response = self.client.post('/api/workflows/delete-certificate/', {'certificate_id': certificate.id}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(SignedCertificate.objects.filter(id=certificate.id).exists())
+
+        response = self.client.post('/api/workflows/delete-private-key/', {'private_key_id': private_key.id}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(PrivateKey.objects.filter(id=private_key.id).exists())
+
+        response = self.client.post('/api/workflows/delete-csr/', {'csr_id': csr.id}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(CertificateSigningRequest.objects.filter(id=csr.id).exists())
+
+        standalone_ca = create_root_certificate_authority(
+            owner=self.user,
+            name='Delete Workflow Standalone CA',
+            subject={**self.subject, 'common_name': 'delete-workflow-standalone.example.com'},
+            certification_depth=3,
+        )
+        response = self.client.post('/api/workflows/delete-ca/', {'target_ca_id': standalone_ca.id}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(CertificateAuthority.objects.filter(id=standalone_ca.id).exists())
+
+    def test_delete_workflow_endpoints_are_owner_scoped(self):
+        self.client.force_authenticate(self.user)
+        other_root = create_root_certificate_authority(
+            owner=self.other_user,
+            name='Other Owner Delete Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+
+        response = self.client.post('/api/workflows/delete-ca/', {'target_ca_id': other_root.id}, format='json')
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

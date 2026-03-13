@@ -5,8 +5,8 @@ from io import BytesIO
 from zipfile import ZipFile
 
 from . import services
-from .models import CertificateAuthority, CertificateProfile, CertificateSigningRequest, PrivateKey, SignedCertificate
-from .workflows import create_intermediate_certificate_authority, create_root_certificate_authority, issue_signed_certificate
+from .models import CertificateAuthority, CertificateProfile, SignedCertificate
+from .workflows import create_intermediate_certificate_authority, create_root_certificate_authority, issue_signed_certificate, issue_signed_certificate_from_csr
 
 
 class PKIViewsTests(TestCase):
@@ -88,492 +88,154 @@ class PKIViewsTests(TestCase):
         imported = CertificateAuthority.objects.get(owner=self.user, name='Imported View Root')
         self.assertRedirects(response, reverse('pki-ca-workbench', kwargs={'ca_id': imported.pk}))
 
-    def test_workbench_issue_certificate_action(self):
-        self.client.force_login(self.user)
-        root = create_root_certificate_authority(
-            owner=self.user,
-            name='Workbench Root',
-            subject=self.subject,
-            certification_depth=3,
-        )
-
-        response = self.client.post(
-            reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
-            data={
-                'action': 'issue_certificate',
-                'issue-name': 'Issued From Workbench',
-                'issue-days_valid': 365,
-                'issue-key_algorithm': 'ec',
-                'issue-curve_name': 'secp256r1',
-                'issue-key_size': '',
-                'issue-public_exponent': '',
-                'issue-passphrase': '',
-                'issue-issuer_key_passphrase': '',
-                'issue-san_dns_names': 'service.example.com,api.example.com',
-                'issue-country_name': 'US',
-                'issue-state_or_province_name': 'New York',
-                'issue-locality_name': 'New York',
-                'issue-organization_name': 'PKI Workbench',
-                'issue-common_name': 'service.example.com',
-                'issue-email_address': '',
-            },
-        )
-
-        self.assertEqual(response.status_code, 302)
-        root.refresh_from_db()
-        self.assertTrue(SignedCertificate.objects.filter(issued_by=root, name='Issued From Workbench').exists())
-
-    def test_workbench_create_intermediate_action(self):
-        self.client.force_login(self.user)
-        root = create_root_certificate_authority(
-            owner=self.user,
-            name='Workbench Root 2',
-            subject=self.subject,
-            certification_depth=3,
-        )
-
-        response = self.client.post(
-            reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
-            data={
-                'action': 'create_intermediate',
-                'intermediate-name': 'Intermediate Via Workbench',
-                'intermediate-days_valid': 1825,
-                'intermediate-key_algorithm': 'rsa',
-                'intermediate-curve_name': 'secp256r1',
-                'intermediate-key_size': 2048,
-                'intermediate-public_exponent': 65537,
-                'intermediate-passphrase': '',
-                'intermediate-parent_key_passphrase': '',
-                'intermediate-country_name': 'US',
-                'intermediate-state_or_province_name': 'New York',
-                'intermediate-locality_name': 'New York',
-                'intermediate-organization_name': 'PKI Workbench',
-                'intermediate-common_name': 'Intermediate Via Workbench',
-                'intermediate-email_address': '',
-            },
-        )
-
-        self.assertEqual(response.status_code, 302)
-        self.assertTrue(
-            CertificateAuthority.objects.filter(name='Intermediate Via Workbench', owner=self.user, parent=root).exists()
-        )
-
-    def test_workbench_sign_csr_action(self):
-        self.client.force_login(self.user)
-        root = create_root_certificate_authority(
-            owner=self.user,
-            name='Workbench Sign CSR Root',
-            subject=self.subject,
-            certification_depth=3,
-        )
-        requester_key_pem = services.create_private_key(key_algorithm='rsa', key_size=2048)
-        requester_csr_pem = services.create_csr(
-            private_key_pem=requester_key_pem,
-            subject={
-                'country_name': 'US',
-                'state_or_province_name': 'New York',
-                'locality_name': 'New York',
-                'organization_name': 'PKI Workbench',
-                'common_name': 'csr-ui.example.com',
-            },
-        )
-
-        response = self.client.post(
-            reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
-            data={
-                'action': 'sign_csr',
-                'sign-csr-name': 'Signed Via CSR Tab',
-                'sign-csr-certificate_profile': '',
-                'sign-csr-csr_pem': requester_csr_pem.decode('utf-8'),
-                'sign-csr-issuer_key_passphrase': '',
-                'sign-csr-days_valid': 365,
-                'sign-csr-ku_digital_signature': 'on',
-                'sign-csr-ku_key_encipherment': 'on',
-                'sign-csr-ku_critical': 'on',
-                'sign-csr-eku_server_auth': 'on',
-            },
-        )
-
-        self.assertEqual(response.status_code, 302)
-        certificate = SignedCertificate.objects.get(owner=self.user, name='Signed Via CSR Tab')
-        self.assertIsNone(certificate.private_key)
-        self.assertIsNotNone(certificate.csr)
-
     def test_workbench_unified_issue_action_generates_certificate(self):
+        """CAWorkbenchView is now GET-only; POST returns 405."""
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user, name='Unified Issue Root',
+            subject=self.subject, certification_depth=3,
+        )
+        response = self.client.post(
+            reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
+            data={'action': 'unified_issue'},
+        )
+        self.assertEqual(response.status_code, 405)
+
+    def test_workbench_unified_form_exposes_api_endpoint_metadata(self):
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
             owner=self.user,
-            name='Unified Issue Root',
+            name='Unified Metadata Root',
             subject=self.subject,
             certification_depth=3,
         )
 
-        response = self.client.post(
-            reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
-            data={
-                'action': 'unified_issue',
-                'unified-source_mode': 'generate',
-                'unified-certificate_profile': '',
-                'unified-name': 'Unified Issued Cert',
-                'unified-days_valid': 365,
-                'unified-key_algorithm': 'rsa',
-                'unified-curve_name': 'secp256r1',
-                'unified-key_size': 2048,
-                'unified-public_exponent': 65537,
-                'unified-passphrase': '',
-                'unified-issuer_key_passphrase': '',
-                'unified-parent_key_passphrase': '',
-                'unified-san_dns_names': 'unified.example.com',
-                'unified-country_name': 'US',
-                'unified-state_or_province_name': 'New York',
-                'unified-locality_name': 'New York',
-                'unified-organization_name': 'PKI Workbench',
-                'unified-organizational_unit_name': 'Security',
-                'unified-common_name': 'unified.example.com',
-                'unified-email_address': '',
-                'unified-ku_digital_signature': 'on',
-                'unified-ku_key_encipherment': 'on',
-                'unified-ku_critical': 'on',
-                'unified-eku_server_auth': 'on',
-            },
+        response = self.client.get(reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-unified-form')
+        self.assertContains(response, f'data-ca-id="{root.pk}"')
+        self.assertContains(response, 'data-endpoint-issue="/api/workflows/certificates/"')
+        self.assertContains(response, 'data-endpoint-intermediate="/api/workflows/intermediate-cas/"')
+
+    def test_workbench_profile_form_exposes_api_endpoint_metadata(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Profile Metadata Root',
+            subject=self.subject,
+            certification_depth=3,
         )
 
-        self.assertEqual(response.status_code, 302)
-        self.assertTrue(SignedCertificate.objects.filter(owner=self.user, name='Unified Issued Cert', issued_by=root).exists())
+        response = self.client.get(reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-profile-form')
+        self.assertContains(response, 'data-api-endpoint="/api/profiles/"')
 
     def test_workbench_unified_issue_action_signs_csr(self):
+        """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
-            owner=self.user,
-            name='Unified CSR Root',
-            subject=self.subject,
-            certification_depth=3,
+            owner=self.user, name='Unified CSR Root',
+            subject=self.subject, certification_depth=3,
         )
-        requester_key_pem = services.create_private_key(key_algorithm='rsa', key_size=2048)
-        requester_csr_pem = services.create_csr(
-            private_key_pem=requester_key_pem,
-            subject={
-                'country_name': 'US',
-                'state_or_province_name': 'New York',
-                'locality_name': 'New York',
-                'organization_name': 'PKI Workbench',
-                'common_name': 'unified-csr.example.com',
-            },
-        )
-
         response = self.client.post(
             reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
-            data={
-                'action': 'unified_issue',
-                'unified-source_mode': 'csr',
-                'unified-certificate_profile': '',
-                'unified-name': 'Unified CSR Signed',
-                'unified-csr_pem': requester_csr_pem.decode('utf-8'),
-                'unified-issuer_key_passphrase': '',
-                'unified-days_valid': 365,
-                'unified-ku_digital_signature': 'on',
-                'unified-ku_key_encipherment': 'on',
-                'unified-ku_critical': 'on',
-                'unified-eku_server_auth': 'on',
-            },
+            data={'action': 'unified_issue'},
         )
-
-        self.assertEqual(response.status_code, 302)
-        cert = SignedCertificate.objects.get(owner=self.user, name='Unified CSR Signed')
-        self.assertIsNone(cert.private_key)
-        self.assertIsNotNone(cert.csr)
+        self.assertEqual(response.status_code, 405)
 
     def test_workbench_unified_create_ca_accepts_issuer_passphrase_fallback(self):
+        """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
-            owner=self.user,
-            name='Unified Fallback Root',
-            subject=self.subject,
-            certification_depth=3,
-            passphrase='root-passphrase',
+            owner=self.user, name='Unified Fallback Root',
+            subject=self.subject, certification_depth=3,
         )
-
         response = self.client.post(
             reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
-            data={
-                'action': 'unified_issue',
-                'unified-source_mode': 'generate',
-                'unified-certificate_profile': '',
-                'unified-name': 'Fallback Child CA',
-                'unified-create_certificate_authority': 'on',
-                'unified-days_valid': 365,
-                'unified-key_algorithm': 'rsa',
-                'unified-curve_name': 'secp256r1',
-                'unified-key_size': 2048,
-                'unified-public_exponent': 65537,
-                'unified-passphrase': '',
-                'unified-issuer_key_passphrase': 'root-passphrase',
-                'unified-parent_key_passphrase': '',
-                'unified-san_dns_names': '',
-                'unified-country_name': 'US',
-                'unified-state_or_province_name': 'New York',
-                'unified-locality_name': 'New York',
-                'unified-organization_name': 'PKI Workbench',
-                'unified-organizational_unit_name': 'Security',
-                'unified-common_name': 'Fallback Child CA',
-                'unified-email_address': '',
-            },
+            data={'action': 'unified_issue'},
         )
-
-        self.assertEqual(response.status_code, 302)
-        self.assertTrue(CertificateAuthority.objects.filter(owner=self.user, name='Fallback Child CA').exists())
+        self.assertEqual(response.status_code, 405)
 
     def test_workbench_unified_create_ca_requires_parent_passphrase_when_parent_key_encrypted(self):
+        """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
-            owner=self.user,
-            name='Encrypted Parent Root',
-            subject=self.subject,
-            certification_depth=3,
-            passphrase='root-passphrase',
+            owner=self.user, name='Encrypted Parent Root',
+            subject=self.subject, certification_depth=3,
         )
-
         response = self.client.post(
             reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
-            data={
-                'action': 'unified_issue',
-                'unified-source_mode': 'generate',
-                'unified-certificate_profile': '',
-                'unified-name': 'Missing Parent Passphrase Child CA',
-                'unified-create_certificate_authority': 'on',
-                'unified-days_valid': 365,
-                'unified-key_algorithm': 'rsa',
-                'unified-curve_name': 'secp256r1',
-                'unified-key_size': 2048,
-                'unified-public_exponent': 65537,
-                'unified-passphrase': '',
-                'unified-issuer_key_passphrase': '',
-                'unified-parent_key_passphrase': '',
-                'unified-san_dns_names': '',
-                'unified-country_name': 'US',
-                'unified-state_or_province_name': 'New York',
-                'unified-locality_name': 'New York',
-                'unified-organization_name': 'PKI Workbench',
-                'unified-organizational_unit_name': 'Security',
-                'unified-common_name': 'missing-parent-passphrase.example.com',
-                'unified-email_address': '',
-            },
+            data={'action': 'unified_issue'},
         )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(
-            response,
-            'Parent key passphrase is required because the signing certificate authority key is encrypted.',
-        )
-        self.assertFalse(
-            CertificateAuthority.objects.filter(owner=self.user, name='Missing Parent Passphrase Child CA').exists()
-        )
+        self.assertEqual(response.status_code, 405)
 
     def test_workbench_unified_csr_requires_issuer_passphrase_when_issuer_key_encrypted(self):
+        """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
-            owner=self.user,
-            name='Encrypted Issuer Root',
-            subject=self.subject,
-            certification_depth=3,
-            passphrase='issuer-passphrase',
+            owner=self.user, name='Encrypted Issuer Root',
+            subject=self.subject, certification_depth=3,
         )
-        requester_key_pem = services.create_private_key(key_algorithm='rsa', key_size=2048)
-        requester_csr_pem = services.create_csr(
-            private_key_pem=requester_key_pem,
-            subject={
-                'country_name': 'US',
-                'state_or_province_name': 'New York',
-                'locality_name': 'New York',
-                'organization_name': 'PKI Workbench',
-                'common_name': 'encrypted-issuer.example.com',
-            },
-        )
-
         response = self.client.post(
             reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
-            data={
-                'action': 'unified_issue',
-                'unified-source_mode': 'csr',
-                'unified-certificate_profile': '',
-                'unified-name': 'Missing Issuer Passphrase CSR',
-                'unified-csr_pem': requester_csr_pem.decode('utf-8'),
-                'unified-issuer_key_passphrase': '',
-                'unified-days_valid': 365,
-                'unified-ku_digital_signature': 'on',
-                'unified-ku_key_encipherment': 'on',
-                'unified-ku_critical': 'on',
-                'unified-eku_server_auth': 'on',
-            },
+            data={'action': 'unified_issue'},
         )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(
-            response,
-            'Issuer key passphrase is required because the signing certificate authority key is encrypted.',
-        )
-        self.assertFalse(SignedCertificate.objects.filter(owner=self.user, name='Missing Issuer Passphrase CSR').exists())
+        self.assertEqual(response.status_code, 405)
 
     def test_workbench_manage_delete_certificate_action(self):
+        """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
-            owner=self.user,
-            name='Delete Cert Root',
-            subject=self.subject,
-            certification_depth=3,
+            owner=self.user, name='Delete Cert Root',
+            subject=self.subject, certification_depth=3,
         )
-        issued = issue_signed_certificate(
-            owner=self.user,
-            issuer_authority=root,
-            name='Delete Me Cert',
-            subject={**self.subject, 'common_name': 'delete-me.example.com'},
-        )
-
         response = self.client.post(
             reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
-            data={
-                'action': 'delete_certificate',
-                'certificate_id': str(issued.pk),
-            },
+            data={'action': 'delete_certificate'},
         )
-
-        self.assertEqual(response.status_code, 302)
-        self.assertFalse(SignedCertificate.objects.filter(pk=issued.pk).exists())
+        self.assertEqual(response.status_code, 405)
 
     def test_workbench_manage_delete_csr_action(self):
+        """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
-            owner=self.user,
-            name='Delete CSR Root',
-            subject=self.subject,
-            certification_depth=3,
+            owner=self.user, name='Delete CSR Root',
+            subject=self.subject, certification_depth=3,
         )
-        requester_key_pem = services.create_private_key(key_algorithm='rsa', key_size=2048)
-        requester_csr_pem = services.create_csr(
-            private_key_pem=requester_key_pem,
-            subject={
-                'country_name': 'US',
-                'state_or_province_name': 'New York',
-                'locality_name': 'New York',
-                'organization_name': 'PKI Workbench',
-                'common_name': 'delete-csr.example.com',
-            },
-        )
-        csr = CertificateSigningRequest.objects.create(
-            owner=self.user,
-            name='Delete Me CSR',
-            subject={'common_name': 'delete-csr.example.com'},
-            csr_pem=requester_csr_pem.decode('utf-8'),
-        )
-
         response = self.client.post(
             reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
-            data={
-                'action': 'delete_csr',
-                'csr_id': str(csr.pk),
-            },
+            data={'action': 'delete_csr'},
         )
-
-        self.assertEqual(response.status_code, 302)
-        self.assertFalse(CertificateSigningRequest.objects.filter(pk=csr.pk).exists())
+        self.assertEqual(response.status_code, 405)
 
     def test_workbench_manage_delete_private_key_action(self):
+        """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
-            owner=self.user,
-            name='Delete Private Key Root',
-            subject=self.subject,
-            certification_depth=3,
+            owner=self.user, name='Delete Private Key Root',
+            subject=self.subject, certification_depth=3,
         )
-        private_key = PrivateKey.objects.create(
-            owner=self.user,
-            name='Delete Me Private Key',
-            algorithm='rsa',
-            key_size=2048,
-            private_key_pem='-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n',
-        )
-
         response = self.client.post(
             reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
-            data={
-                'action': 'delete_private_key',
-                'private_key_id': str(private_key.pk),
-            },
+            data={'action': 'delete_private_key'},
         )
-
-        self.assertEqual(response.status_code, 302)
-        self.assertFalse(PrivateKey.objects.filter(pk=private_key.pk).exists())
+        self.assertEqual(response.status_code, 405)
 
     def test_workbench_manage_delete_ca_action_redirects_to_fallback_ca(self):
-        self.client.force_login(self.user)
-        first = create_root_certificate_authority(
-            owner=self.user,
-            name='Delete Me CA',
-            subject=self.subject,
-            certification_depth=3,
-        )
-        second = create_root_certificate_authority(
-            owner=self.user,
-            name='Fallback CA',
-            subject={**self.subject, 'common_name': 'Fallback CA'},
-            certification_depth=3,
-        )
-
-        response = self.client.post(
-            reverse('pki-ca-workbench', kwargs={'ca_id': first.pk}),
-            data={
-                'action': 'delete_ca',
-                'target_ca_id': str(first.pk),
-            },
-        )
-
-        self.assertEqual(response.status_code, 302)
-        self.assertRedirects(response, reverse('pki-ca-workbench', kwargs={'ca_id': second.pk}))
-        self.assertFalse(CertificateAuthority.objects.filter(pk=first.pk).exists())
-
-    def test_workbench_unknown_action_keeps_unified_tab_active(self):
+        """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
-            owner=self.user,
-            name='Unknown Action Root',
-            subject=self.subject,
-            certification_depth=3,
+            owner=self.user, name='Delete Me CA',
+            subject=self.subject, certification_depth=3,
         )
-
         response = self.client.post(
             reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
-            data={
-                'action': 'does_not_exist',
-            },
+            data={'action': 'delete_ca'},
         )
-
-        self.assertEqual(response.status_code, 200)
-        html = response.content.decode('utf-8')
-        self.assertIn('nav-link active" id="unified-tab"', html)
-        self.assertIn('show active" id="unified-pane" role="tabpanel"', html)
-
-    def test_invalid_issue_certificate_submit_keeps_no_known_tab_active(self):
-        self.client.force_login(self.user)
-        root = create_root_certificate_authority(
-            owner=self.user,
-            name='Invalid Issue Tab Root',
-            subject=self.subject,
-            certification_depth=3,
-        )
-
-        response = self.client.post(
-            reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
-            data={
-                'action': 'issue_certificate',
-                'issue-name': '',
-            },
-        )
-
-        self.assertEqual(response.status_code, 200)
-        html = response.content.decode('utf-8')
-        self.assertNotIn('nav-link active" id="unified-tab"', html)
-        self.assertNotIn('nav-link active" id="manage-tab"', html)
-        self.assertNotIn('nav-link active" id="profile-tab"', html)
+        self.assertEqual(response.status_code, 405)
 
     def test_issued_certificate_detail_and_downloads(self):
         self.client.force_login(self.user)
@@ -678,76 +340,30 @@ class PKIViewsTests(TestCase):
             },
         )
 
-        self.client.post(
-            reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
-            data={
-                'action': 'sign_csr',
-                'sign-csr-name': 'CSR Without Stored Key',
-                'sign-csr-certificate_profile': '',
-                'sign-csr-csr_pem': requester_csr_pem.decode('utf-8'),
-                'sign-csr-issuer_key_passphrase': '',
-                'sign-csr-days_valid': 365,
-            },
+        certificate = issue_signed_certificate_from_csr(
+            owner=self.user,
+            issuer_authority=root,
+            name='CSR Without Stored Key',
+            csr_pem=requester_csr_pem,
+            days_valid=365,
         )
-
-        certificate = SignedCertificate.objects.get(owner=self.user, name='CSR Without Stored Key')
         response = self.client.get(
             reverse('pki-issued-certificate-download', kwargs={'certificate_id': certificate.pk, 'artifact': 'pair-zip'})
         )
         self.assertEqual(response.status_code, 404)
 
     def test_workbench_create_certificate_profile_action(self):
+        """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
-            owner=self.user,
-            name='Profile Root',
-            subject=self.subject,
-            certification_depth=3,
+            owner=self.user, name='Profile Root',
+            subject=self.subject, certification_depth=3,
         )
-
         response = self.client.post(
             reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
-            data={
-                'action': 'create_certificate_profile',
-                'profile-name': 'Web Server Profile',
-                'profile-description': 'TLS server profile',
-                'profile-is_ca': '',
-                'profile-path_length': '',
-                'profile-days_valid': 825,
-                'profile-key_algorithm': 'rsa',
-                'profile-curve_name': 'secp256r1',
-                'profile-key_size': 2048,
-                'profile-public_exponent': 65537,
-                'profile-country_name': 'US',
-                'profile-state_or_province_name': 'New York',
-                'profile-locality_name': 'New York',
-                'profile-organization_name': 'PKI Workbench',
-                'profile-organizational_unit_name': 'Infrastructure',
-                'profile-common_name': '',
-                'profile-email_address': '',
-                'profile-ku_digital_signature': 'on',
-                'profile-ku_content_commitment': '',
-                'profile-ku_key_encipherment': 'on',
-                'profile-ku_data_encipherment': '',
-                'profile-ku_key_agreement': '',
-                'profile-ku_key_cert_sign': '',
-                'profile-ku_crl_sign': '',
-                'profile-ku_encipher_only': '',
-                'profile-ku_decipher_only': '',
-                'profile-ku_critical': 'on',
-                'profile-eku_server_auth': 'on',
-                'profile-eku_client_auth': '',
-                'profile-eku_code_signing': '',
-                'profile-eku_email_protection': '',
-                'profile-eku_time_stamping': '',
-                'profile-eku_ocsp_signing': '',
-            },
+            data={'action': 'create_certificate_profile'},
         )
-
-        self.assertEqual(response.status_code, 302)
-        profile = CertificateProfile.objects.get(owner=self.user, name='Web Server Profile')
-        self.assertEqual(profile.organization_name, 'PKI Workbench')
-        self.assertEqual(profile.organizational_unit_name, 'Infrastructure')
+        self.assertEqual(response.status_code, 405)
 
     def test_create_profile_from_certificate_detail(self):
         self.client.force_login(self.user)
@@ -818,25 +434,17 @@ class PKIViewsTests(TestCase):
         self.assertIn('data-profile-bound', html)
 
     def test_profile_tab_remains_active_on_invalid_profile_submit(self):
+        """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
-            owner=self.user,
-            name='Invalid Profile Root',
-            subject=self.subject,
-            certification_depth=3,
+            owner=self.user, name='Invalid Profile Root',
+            subject=self.subject, certification_depth=3,
         )
-
         response = self.client.post(
             reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}),
-            data={
-                'action': 'create_certificate_profile',
-                'profile-name': '',
-            },
+            data={'action': 'create_certificate_profile', 'profile-name': ''},
         )
-        self.assertEqual(response.status_code, 200)
-        html = response.content.decode('utf-8')
-        self.assertIn('nav-link active" id="profile-tab"', html)
-        self.assertIn('show active" id="profile-pane" role="tabpanel"', html)
+        self.assertEqual(response.status_code, 405)
 
     def test_workbench_lists_existing_profiles_with_edit_controls(self):
         self.client.force_login(self.user)
