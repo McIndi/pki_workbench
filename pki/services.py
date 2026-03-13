@@ -6,6 +6,8 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import dsa, ec, ed25519, ed448, padding, rsa, x25519, x448
 from cryptography.x509.oid import ExtendedKeyUsageOID
 from cryptography.x509.oid import NameOID
+from pki_shared.crypto import create_csr as shared_create_csr
+from pki_shared.crypto import create_private_key as shared_create_private_key
 
 
 SUBJECT_FIELD_MAP = {
@@ -93,37 +95,12 @@ def create_private_key(
     key_size: int = 2048,
     public_exponent: int = 65537,
 ) -> bytes:
-    if key_algorithm == 'rsa':
-        private_key = rsa.generate_private_key(public_exponent=public_exponent, key_size=key_size)
-    elif key_algorithm == 'ec':
-        curve_class = EC_CURVE_MAP.get(curve_name)
-        if curve_class is None:
-            raise ValueError(f'Unsupported EC curve: {curve_name}')
-        private_key = ec.generate_private_key(curve_class())
-    elif key_algorithm == 'eddsa':
-        if curve_name == 'ed25519':
-            private_key = ed25519.Ed25519PrivateKey.generate()
-        elif curve_name == 'ed448':
-            private_key = ed448.Ed448PrivateKey.generate()
-        else:
-            raise ValueError(f'Unsupported EdDSA curve: {curve_name}')
-    elif key_algorithm == 'x25519':
-        private_key = x25519.X25519PrivateKey.generate()
-    elif key_algorithm == 'x448':
-        private_key = x448.X448PrivateKey.generate()
-    else:
-        raise ValueError(f'Unsupported key algorithm: {key_algorithm}')
-    if passphrase is not None:
-        passphrase_bytes = _passphrase_to_bytes(passphrase)
-        if passphrase_bytes is None:
-            raise ValueError('Passphrase could not be parsed.')
-        encryption = serialization.BestAvailableEncryption(passphrase_bytes)
-    else:
-        encryption = serialization.NoEncryption()
-    return private_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=encryption,
+    return shared_create_private_key(
+        passphrase=passphrase,
+        key_algorithm=key_algorithm,
+        curve_name=curve_name,
+        key_size=key_size,
+        public_exponent=public_exponent,
     )
 
 
@@ -240,28 +217,12 @@ def create_csr(
     passphrase: str | bytes | bytearray | memoryview | None = None,
     san_dns_names: list[str] | None = None,
 ) -> bytes:
-    private_key = load_private_key(private_key_pem, passphrase=passphrase)
-    if not isinstance(private_key, ISSUER_PRIVATE_KEY_TYPES):
-        raise TypeError('Unsupported key type for CSR signing.')
-    issuer_private_key = cast(
-        rsa.RSAPrivateKey
-        | dsa.DSAPrivateKey
-        | ec.EllipticCurvePrivateKey
-        | ed25519.Ed25519PrivateKey
-        | ed448.Ed448PrivateKey,
-        private_key,
+    return shared_create_csr(
+        private_key_pem=private_key_pem,
+        subject=subject,
+        passphrase=passphrase,
+        san_dns_names=san_dns_names,
     )
-
-    builder = x509.CertificateSigningRequestBuilder().subject_name(_to_subject_name(subject))
-
-    if san_dns_names:
-        builder = builder.add_extension(
-            x509.SubjectAlternativeName([x509.DNSName(name) for name in san_dns_names]),
-            critical=False,
-        )
-
-    csr = builder.sign(issuer_private_key, _sign_algorithm_for_private_key(issuer_private_key))
-    return csr.public_bytes(serialization.Encoding.PEM)
 
 
 def create_self_signed_ca(

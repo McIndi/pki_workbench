@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pki import services
+from pki_shared import crypto
 
 from .common import split_csv
 
@@ -32,14 +32,14 @@ def generate_csr_from_args(args) -> str:
         raise SystemExit(f'Missing required subject fields for --generate-csr: {missing_options}')
 
     key_passphrase = args.csr_key_passphrase or None
-    private_key_pem = services.create_private_key(
+    private_key_pem = crypto.create_private_key(
         key_algorithm=args.csr_key_algorithm,
         curve_name=args.csr_curve_name,
         key_size=args.csr_key_size,
         public_exponent=args.csr_public_exponent,
         passphrase=key_passphrase,
     )
-    csr_bytes = services.create_csr(
+    csr_bytes = crypto.create_csr(
         private_key_pem=private_key_pem,
         subject=build_subject_from_args(args),
         passphrase=key_passphrase,

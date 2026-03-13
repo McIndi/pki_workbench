@@ -13,8 +13,16 @@ You can pass values via flags or environment variables.
 CLI code layout:
 
 - Entrypoint: `python -m pki.cli`
+- Console script: `pki` (from `pyproject.toml`)
 - Package: `pki/cli/`
 - One subcommand per file under `pki/cli/commands/`
+- Shared crypto primitives: `pki_shared/` (Django-independent)
+
+To enable the `pki` command in your environment:
+
+```bash
+pip install -e .
+```
 
 Environment variables:
 
@@ -29,6 +37,7 @@ Show help:
 
 ```bash
 python -m pki.cli --help
+pki --help
 ```
 
 Create root CA:

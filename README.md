@@ -52,6 +52,7 @@ It is suitable for development, testing, and internal prototyping. Before produc
 
 - `config/` – Django project configuration (`settings.py`, `urls.py`, etc.)
 - `pki/` – PKI models, forms, workflows, views, API endpoints, tests
+- `pki_shared/` – shared non-Django crypto helpers used by API/server and CLI
 - `accounts/` – authentication/user profile support
 - `templates/` – HTML templates
 - `requirements.txt` – Python dependencies
@@ -174,6 +175,7 @@ BYOK CSR flow support:
 - `issue-certificate --mode csr --generate-csr ...` generates key+CSR client-side and submits CSR to `/api/cas/{id}/sign-csr/`.
 
 Run it as `python -m pki.cli ...`.
+After installing in editable mode (`pip install -e .`), you can also run it as `pki ...`.
 See `pki/cli/README.md` for command examples.
 
 ## Running Tests
@@ -189,6 +191,7 @@ Run focused suites:
 ```bash
 python manage.py test pki.tests_views
 python manage.py test pki.tests_api
+python manage.py test pki.cli.tests_cli
 ```
 
 ## Production Readiness Checklist (recommended next steps)
