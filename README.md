@@ -152,6 +152,30 @@ Primary endpoint groups:
 - `/api/workflows/certificates/`
 - `/api/workflows/profiles/from-certificate/`
 
+## Python API CLI Wrapper
+
+Use the standalone CLI module at `pki/cli` to drive the REST API externally.
+
+Authentication options supported by the CLI:
+
+- Basic auth (`--username` / `--password`)
+
+Configuration can be passed as flags or environment variables:
+
+- `PKI_API_BASE_URL` (default: `http://localhost:8000/api/`)
+- `PKI_API_USERNAME`
+- `PKI_API_PASSWORD`
+- `PKI_API_TIMEOUT` (default: `30`)
+
+BYOK CSR flow support:
+
+- `issue-certificate --mode generate` uses server-side key generation.
+- `issue-certificate --mode csr --csr-pem-file ...` submits an existing CSR.
+- `issue-certificate --mode csr --generate-csr ...` generates key+CSR client-side and submits CSR to `/api/cas/{id}/sign-csr/`.
+
+Run it as `python -m pki.cli ...`.
+See `pki/cli/README.md` for command examples.
+
 ## Running Tests
 
 Run full suite:
