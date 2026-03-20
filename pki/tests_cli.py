@@ -1,8 +1,8 @@
 from unittest import TestCase
 from unittest.mock import patch
 
-from pki.cli.client import APIClient
-from pki.cli.main import build_parser
+from pki_cli.client import APIClient
+from pki_cli.main import build_parser
 
 
 class _FakeClient:
@@ -96,7 +96,7 @@ class CLICommandRoutingTests(TestCase):
         )
         client = _FakeClient()
 
-        with patch('pki.cli.commands.issue_certificate.generate_csr_from_args', return_value='CSR-PEM'):
+        with patch('pki_cli.commands.issue_certificate.generate_csr_from_args', return_value='CSR-PEM'):
             args.func(client, args)
 
         self.assertEqual(len(client.calls), 1)

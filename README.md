@@ -155,7 +155,7 @@ Primary endpoint groups:
 
 ## Python API CLI Wrapper
 
-Use the standalone CLI module at `pki/cli` to drive the REST API externally.
+Use the standalone CLI module at `pki_cli/` to drive the REST API externally.
 
 Authentication options supported by the CLI:
 
@@ -174,9 +174,9 @@ BYOK CSR flow support:
 - `issue-certificate --mode csr --csr-pem-file ...` submits an existing CSR.
 - `issue-certificate --mode csr --generate-csr ...` generates key+CSR client-side and submits CSR to `/api/cas/{id}/sign-csr/`.
 
-Run it as `python -m pki.cli ...`.
+Run it as `python -m pki_cli ...`.
 After installing in editable mode (`pip install -e .`), you can also run it as `pki ...`.
-See `pki/cli/README.md` for command examples.
+See `pki_cli/README.md` for command examples.
 
 ## Running Tests
 
@@ -191,7 +191,7 @@ Run focused suites:
 ```bash
 python manage.py test pki.tests_views
 python manage.py test pki.tests_api
-python manage.py test pki.cli.tests_cli
+python manage.py test pki.tests_cli
 ```
 
 ## Production Readiness Checklist (recommended next steps)

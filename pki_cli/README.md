@@ -12,10 +12,10 @@ You can pass values via flags or environment variables.
 
 CLI code layout:
 
-- Entrypoint: `python -m pki.cli`
+- Entrypoint: `python -m pki_cli`
 - Console script: `pki` (from `pyproject.toml`)
-- Package: `pki/cli/`
-- One subcommand per file under `pki/cli/commands/`
+- Package: `pki_cli/`
+- One subcommand per file under `pki_cli/commands/`
 - Shared crypto primitives: `pki_shared/` (Django-independent)
 
 To enable the `pki` command in your environment:
@@ -36,14 +36,14 @@ Environment variables:
 Show help:
 
 ```bash
-python -m pki.cli --help
+python -m pki_cli --help
 pki --help
 ```
 
 Create root CA:
 
 ```bash
-python -m pki.cli create-root-ca \
+python -m pki_cli create-root-ca \
   --name "CLI Root" \
   --country-name US \
   --state-or-province-name "New York" \
@@ -55,7 +55,7 @@ python -m pki.cli create-root-ca \
 Issue certificate (server generates key):
 
 ```bash
-python -m pki.cli issue-certificate \
+python -m pki_cli issue-certificate \
   --issuer-ca-id 1 \
   --name "CLI Leaf" \
   --mode generate \
@@ -69,7 +69,7 @@ python -m pki.cli issue-certificate \
 Issue certificate via BYOK with local CSR generation:
 
 ```bash
-python -m pki.cli issue-certificate \
+python -m pki_cli issue-certificate \
   --issuer-ca-id 1 \
   --name "BYOK Leaf" \
   --mode csr \

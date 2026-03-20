@@ -9,4 +9,4 @@ description = "PKI Workbench"
 requires-python = ">=3.11"
 
 [project.scripts]
-pki = "pki.cli.main:main"
+pki = "pki_cli.main:main"
