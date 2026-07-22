@@ -433,6 +433,22 @@ class CertificateWorkflowSerializer(serializers.Serializer):
     eku_time_stamping = serializers.BooleanField(required=False, default=False)
     eku_ocsp_signing = serializers.BooleanField(required=False, default=False)
 
+    def validate(self, attrs):
+        ku_fields = [
+            'ku_digital_signature',
+            'ku_content_commitment',
+            'ku_key_encipherment',
+            'ku_data_encipherment',
+            'ku_key_agreement',
+            'ku_key_cert_sign',
+            'ku_crl_sign',
+            'ku_encipher_only',
+            'ku_decipher_only',
+        ]
+        if not any(bool(attrs.get(field_name, False)) for field_name in ku_fields):
+            raise serializers.ValidationError({'ku_digital_signature': 'Select at least one Key Usage.'})
+        return attrs
+
 
 class IssueCertificateWorkflowAPIView(APIView):
     permission_classes = [IsAuthenticated]

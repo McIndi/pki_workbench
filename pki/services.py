@@ -181,17 +181,31 @@ def _normalize_key_usage(key_usage: dict | None, *, is_ca: bool) -> tuple[x509.K
         )
 
     key_agreement = bool(key_usage.get('key_agreement', False))
+    key_usage_flags = {
+        'digital_signature': bool(key_usage.get('digital_signature', False)),
+        'content_commitment': bool(key_usage.get('content_commitment', False)),
+        'key_encipherment': bool(key_usage.get('key_encipherment', False)),
+        'data_encipherment': bool(key_usage.get('data_encipherment', False)),
+        'key_agreement': key_agreement,
+        'key_cert_sign': bool(key_usage.get('key_cert_sign', False)),
+        'crl_sign': bool(key_usage.get('crl_sign', False)),
+        'encipher_only': bool(key_usage.get('encipher_only', False)) if key_agreement else False,
+        'decipher_only': bool(key_usage.get('decipher_only', False)) if key_agreement else False,
+    }
+    if not any(key_usage_flags.values()):
+        raise ValueError('At least one Key Usage bit must be set.')
+
     return (
         x509.KeyUsage(
-            digital_signature=bool(key_usage.get('digital_signature', False)),
-            content_commitment=bool(key_usage.get('content_commitment', False)),
-            key_encipherment=bool(key_usage.get('key_encipherment', False)),
-            data_encipherment=bool(key_usage.get('data_encipherment', False)),
-            key_agreement=key_agreement,
-            key_cert_sign=bool(key_usage.get('key_cert_sign', False)),
-            crl_sign=bool(key_usage.get('crl_sign', False)),
-            encipher_only=bool(key_usage.get('encipher_only', False)) if key_agreement else False,
-            decipher_only=bool(key_usage.get('decipher_only', False)) if key_agreement else False,
+            digital_signature=key_usage_flags['digital_signature'],
+            content_commitment=key_usage_flags['content_commitment'],
+            key_encipherment=key_usage_flags['key_encipherment'],
+            data_encipherment=key_usage_flags['data_encipherment'],
+            key_agreement=key_usage_flags['key_agreement'],
+            key_cert_sign=key_usage_flags['key_cert_sign'],
+            crl_sign=key_usage_flags['crl_sign'],
+            encipher_only=key_usage_flags['encipher_only'],
+            decipher_only=key_usage_flags['decipher_only'],
         ),
         bool(key_usage.get('critical', True)),
     )

@@ -141,6 +141,83 @@ class PKIApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(SignedCertificate.objects.filter(owner=self.user, name='Workflow API Cert').exists())
 
+    def test_intermediate_ca_workflow_endpoint(self):
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='API Intermediate Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.post(
+            '/api/workflows/intermediate-cas/',
+            {
+                'parent_ca_id': root.id,
+                'name': 'API Intermediate CA',
+                'country_name': 'US',
+                'state_or_province_name': 'New York',
+                'locality_name': 'New York',
+                'organization_name': 'PKI Workbench',
+                'organizational_unit_name': 'API',
+                'common_name': 'api-intermediate.example.com',
+                'email_address': '',
+                'days_valid': 365,
+                'key_algorithm': 'rsa',
+                'curve_name': 'secp256r1',
+                'key_size': 2048,
+                'public_exponent': 65537,
+                'passphrase': '',
+                'parent_key_passphrase': '',
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(CertificateAuthority.objects.filter(owner=self.user, name='API Intermediate CA').exists())
+
+    def test_issue_certificate_workflow_rejects_empty_key_usage(self):
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='API Empty KU Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.post(
+            '/api/workflows/certificates/',
+            {
+                'issuer_ca_id': root.id,
+                'name': 'Workflow API Empty KU Cert',
+                'country_name': 'US',
+                'state_or_province_name': 'New York',
+                'locality_name': 'New York',
+                'organization_name': 'PKI Workbench',
+                'organizational_unit_name': 'API',
+                'common_name': 'workflow-empty-ku.example.com',
+                'days_valid': 365,
+                'key_algorithm': 'rsa',
+                'key_size': 2048,
+                'public_exponent': 65537,
+                'ku_digital_signature': False,
+                'ku_content_commitment': False,
+                'ku_key_encipherment': False,
+                'ku_data_encipherment': False,
+                'ku_key_agreement': False,
+                'ku_key_cert_sign': False,
+                'ku_crl_sign': False,
+                'ku_encipher_only': False,
+                'ku_decipher_only': False,
+                'ku_critical': True,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('ku_digital_signature', response.data)
+        self.assertFalse(SignedCertificate.objects.filter(owner=self.user, name='Workflow API Empty KU Cert').exists())
+
     def test_api_root_includes_import_and_sign_csr_endpoints(self):
         self.client.force_authenticate(self.user)
         response = self.client.get('/api/')

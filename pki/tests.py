@@ -209,6 +209,37 @@ class PKIServicesTests(SimpleTestCase):
 			)
 		)
 
+	def test_sign_certificate_rejects_empty_explicit_key_usage(self):
+		ca_key_pem = services.create_private_key()
+		ca_cert_pem = services.create_self_signed_ca(
+			private_key_pem=ca_key_pem,
+			subject={**self.subject, 'common_name': 'Key Usage Guard CA'},
+			days_valid=3650,
+		)
+
+		leaf_key_pem = services.create_private_key()
+		csr_pem = services.create_csr(private_key_pem=leaf_key_pem, subject=self.subject)
+
+		with self.assertRaisesRegex(ValueError, 'At least one Key Usage bit must be set'):
+			services.sign_certificate(
+				csr_pem=csr_pem,
+				ca_cert_pem=ca_cert_pem,
+				ca_private_key_pem=ca_key_pem,
+				days_valid=365,
+				key_usage={
+					'digital_signature': False,
+					'content_commitment': False,
+					'key_encipherment': False,
+					'data_encipherment': False,
+					'key_agreement': False,
+					'key_cert_sign': False,
+					'crl_sign': False,
+					'encipher_only': False,
+					'decipher_only': False,
+					'critical': True,
+				},
+			)
+
 	def test_create_x25519_and_x448_private_keys(self):
 		x25519_key_pem = services.create_private_key(key_algorithm='x25519')
 		x448_key_pem = services.create_private_key(key_algorithm='x448')

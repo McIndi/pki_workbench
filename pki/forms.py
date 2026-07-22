@@ -202,6 +202,20 @@ class IssueCertificateForm(BasePKIForm):
             self.add_error('curve_name', 'Curve is required for EC keys.')
         if algorithm == PrivateKey.Algorithm.EDDSA and curve_name not in {'ed25519', 'ed448'}:
             self.add_error('curve_name', 'Choose ed25519 or ed448 for EdDSA keys.')
+
+        key_usage_payload = {
+            'digital_signature': cleaned.get('ku_digital_signature', False),
+            'content_commitment': cleaned.get('ku_content_commitment', False),
+            'key_encipherment': cleaned.get('ku_key_encipherment', False),
+            'data_encipherment': cleaned.get('ku_data_encipherment', False),
+            'key_agreement': cleaned.get('ku_key_agreement', False),
+            'key_cert_sign': cleaned.get('ku_key_cert_sign', False),
+            'crl_sign': cleaned.get('ku_crl_sign', False),
+            'encipher_only': cleaned.get('ku_encipher_only', False),
+            'decipher_only': cleaned.get('ku_decipher_only', False),
+        }
+        if not any(bool(value) for value in key_usage_payload.values()):
+            self.add_error('ku_digital_signature', 'Select at least one Key Usage.')
         return cleaned
 
     def san_dns_name_list(self):
