@@ -10,6 +10,7 @@ from django.urls import reverse
 from django.utils.text import slugify
 from django.views import View
 
+from . import services
 from .forms import (
 	CertificateProfileForm,
 	CreateProfileFromCertificateForm,
@@ -275,6 +276,18 @@ def _certificate_chain_pem(certificate: SignedCertificate) -> str:
 	return '\n'.join(chain) + '\n'
 
 
+def _certificate_extensions_context(certificate: SignedCertificate) -> dict:
+	try:
+		return services.summarize_certificate_extensions(certificate.certificate_pem)
+	except ValueError:
+		return {
+			'basic_constraints': None,
+			'key_usage': None,
+			'extended_key_usage': None,
+			'san_dns_names': [],
+		}
+
+
 class IssuedCertificateDetailView(LoginRequiredMixin, View):
 	template_name = 'pki/issued_certificate_detail.html'
 
@@ -293,10 +306,15 @@ class IssuedCertificateDetailView(LoginRequiredMixin, View):
 			prefix='from-cert',
 			initial={'name': f'{certificate.name} Profile'},
 		)
+		extensions = _certificate_extensions_context(certificate)
 		return render(
 			request,
 			self.template_name,
-			{'certificate': certificate, 'profile_from_certificate_form': profile_from_certificate_form},
+			{
+				'certificate': certificate,
+				'profile_from_certificate_form': profile_from_certificate_form,
+				'extensions': extensions,
+			},
 		)
 
 	def post(self, request: HttpRequest, certificate_id: int) -> HttpResponse:
@@ -324,7 +342,11 @@ class IssuedCertificateDetailView(LoginRequiredMixin, View):
 		response = render(
 			request,
 			self.template_name,
-			{'certificate': certificate, 'profile_from_certificate_form': profile_from_certificate_form},
+			{
+				'certificate': certificate,
+				'profile_from_certificate_form': profile_from_certificate_form,
+				'extensions': _certificate_extensions_context(certificate),
+			},
 		)
 		response.status_code = response_status
 		return response

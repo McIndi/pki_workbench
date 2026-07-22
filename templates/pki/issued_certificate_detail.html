@@ -31,6 +31,77 @@
 
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body">
+        <h2 class="h6 text-uppercase text-body-secondary mb-3">Certificate Extensions</h2>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="small text-body-secondary mb-1">Basic Constraints</div>
+                {% if extensions.basic_constraints %}
+                    <div class="fw-semibold mb-1">CA: {% if extensions.basic_constraints.ca %}Yes{% else %}No{% endif %}</div>
+                    <div class="small text-body-secondary">
+                        Path Length:
+                        {% if extensions.basic_constraints.path_length is not None %}
+                            {{ extensions.basic_constraints.path_length }}
+                        {% else %}
+                            None
+                        {% endif %}
+                        · Critical: {% if extensions.basic_constraints.critical %}Yes{% else %}No{% endif %}
+                    </div>
+                {% else %}
+                    <div class="text-body-secondary">Not present</div>
+                {% endif %}
+            </div>
+            <div class="col-md-6">
+                <div class="small text-body-secondary mb-1">Subject Alternative Name (DNS)</div>
+                {% if extensions.san_dns_names %}
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for dns_name in extensions.san_dns_names %}
+                            <span class="badge text-bg-light border">{{ dns_name }}</span>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-body-secondary">Not present</div>
+                {% endif %}
+            </div>
+            <div class="col-md-6">
+                <div class="small text-body-secondary mb-1">Key Usage</div>
+                {% if extensions.key_usage %}
+                    {% if extensions.key_usage.enabled %}
+                        <div class="d-flex flex-wrap gap-2 mb-1">
+                            {% for usage_name in extensions.key_usage.enabled %}
+                                <span class="badge text-bg-primary-subtle border border-primary-subtle text-primary-emphasis">{{ usage_name }}</span>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-body-secondary mb-1">No usage bits are set</div>
+                    {% endif %}
+                    <div class="small text-body-secondary">Critical: {% if extensions.key_usage.critical %}Yes{% else %}No{% endif %}</div>
+                {% else %}
+                    <div class="text-body-secondary">Not present</div>
+                {% endif %}
+            </div>
+            <div class="col-md-6">
+                <div class="small text-body-secondary mb-1">Extended Key Usage</div>
+                {% if extensions.extended_key_usage %}
+                    {% if extensions.extended_key_usage.enabled %}
+                        <div class="d-flex flex-wrap gap-2 mb-1">
+                            {% for usage_name in extensions.extended_key_usage.enabled %}
+                                <span class="badge text-bg-info-subtle border border-info-subtle text-info-emphasis">{{ usage_name }}</span>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-body-secondary mb-1">No EKU values are set</div>
+                    {% endif %}
+                    <div class="small text-body-secondary">Critical: {% if extensions.extended_key_usage.critical %}Yes{% else %}No{% endif %}</div>
+                {% else %}
+                    <div class="text-body-secondary">Not present</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
         <h2 class="h6 text-uppercase text-body-secondary mb-3">Downloads</h2>
         <div class="d-flex flex-wrap gap-2">
             <a class="btn btn-primary" href="{% url 'pki-issued-certificate-download' certificate.id 'pubcert' %}">Download Public Cert</a>

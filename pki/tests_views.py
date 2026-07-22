@@ -292,6 +292,72 @@ class PKIViewsTests(TestCase):
             self.assertTrue(any('privkey' in name for name in names))
             self.assertTrue(any('csr' in name for name in names))
 
+    def test_issued_certificate_detail_displays_leaf_extensions(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Extension Display Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+        issued = issue_signed_certificate(
+            owner=self.user,
+            issuer_authority=root,
+            name='Extension Display Cert',
+            subject={
+                **self.subject,
+                'common_name': 'extensions.example.com',
+            },
+            san_dns_names=['extensions.example.com', 'www.extensions.example.com'],
+            key_usage={
+                'digital_signature': True,
+                'content_commitment': False,
+                'key_encipherment': True,
+                'data_encipherment': False,
+                'key_agreement': False,
+                'key_cert_sign': False,
+                'crl_sign': False,
+                'encipher_only': False,
+                'decipher_only': False,
+                'critical': True,
+            },
+            extended_key_usages=['server_auth', 'client_auth'],
+        )
+
+        response = self.client.get(
+            reverse('pki-issued-certificate-detail', kwargs={'certificate_id': issued.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Certificate Extensions')
+        self.assertContains(response, 'CA: No')
+        self.assertContains(response, 'Digital Signature')
+        self.assertContains(response, 'Key Encipherment')
+        self.assertContains(response, 'Server Auth')
+        self.assertContains(response, 'Client Auth')
+        self.assertContains(response, 'www.extensions.example.com')
+
+    def test_issued_certificate_detail_displays_ca_basic_constraints(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Root Extension Display',
+            subject=self.subject,
+            certification_depth=3,
+        )
+
+        response = self.client.get(
+            reverse('pki-issued-certificate-detail', kwargs={'certificate_id': root.certificate.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Certificate Extensions')
+        self.assertContains(response, 'CA: Yes')
+        self.assertContains(response, 'Path Length:')
+        self.assertContains(response, '2')
+        self.assertContains(response, 'Key Cert Sign')
+        self.assertContains(response, 'CRL Sign')
+
     def test_issued_certificate_downloads_are_owner_scoped(self):
         user_model = get_user_model()
         other_user = user_model.objects.create(email='other@example.com')
