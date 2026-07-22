@@ -118,6 +118,24 @@ class PKIViewsTests(TestCase):
         self.assertContains(response, 'data-endpoint-issue="/api/workflows/certificates/"')
         self.assertContains(response, 'data-endpoint-intermediate="/api/workflows/intermediate-cas/"')
 
+    def test_workbench_unified_form_includes_ca_mode_leaf_usage_note(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Unified CA Mode Note Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+
+        response = self.client.get(reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-leaf-options')
+        self.assertContains(
+            response,
+            'CA certificates always use Digital Signature, Key Cert Sign, and CRL Sign (critical).',
+        )
+
     def test_workbench_profile_form_exposes_api_endpoint_metadata(self):
         self.client.force_login(self.user)
         root = create_root_certificate_authority(

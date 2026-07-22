@@ -230,29 +230,34 @@
                     <div class="col-md-6" data-profile-bound data-mode-generated><label class="form-label">Email</label>{{ unified_form.email_address }}</div>
 
                     <div class="col-12"><hr class="my-2"></div>
-                    <div class="col-12">
+                    <div class="col-12" data-mode-generated data-create-ca-options>
+                        <div class="alert alert-info mb-2">
+                            CA certificates always use Digital Signature, Key Cert Sign, and CRL Sign (critical). Key Usage and Extended Key Usage selections apply only to leaf certificates and CSR signing.
+                        </div>
+                    </div>
+                    <div class="col-12" data-leaf-options>
                         <h3 class="h6 text-uppercase text-body-secondary mb-2">Key Usage</h3>
                     </div>
-                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.ku_digital_signature }} <label class="form-check-label" for="{{ unified_form.ku_digital_signature.id_for_label }}">Digital Signature</label></div>
-                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.ku_content_commitment }} <label class="form-check-label" for="{{ unified_form.ku_content_commitment.id_for_label }}">Content Commitment</label></div>
-                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.ku_key_encipherment }} <label class="form-check-label" for="{{ unified_form.ku_key_encipherment.id_for_label }}">Key Encipherment</label></div>
-                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.ku_data_encipherment }} <label class="form-check-label" for="{{ unified_form.ku_data_encipherment.id_for_label }}">Data Encipherment</label></div>
-                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.ku_key_agreement }} <label class="form-check-label" for="{{ unified_form.ku_key_agreement.id_for_label }}">Key Agreement</label></div>
-                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.ku_key_cert_sign }} <label class="form-check-label" for="{{ unified_form.ku_key_cert_sign.id_for_label }}">Key Cert Sign</label></div>
-                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.ku_crl_sign }} <label class="form-check-label" for="{{ unified_form.ku_crl_sign.id_for_label }}">CRL Sign</label></div>
-                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.ku_encipher_only }} <label class="form-check-label" for="{{ unified_form.ku_encipher_only.id_for_label }}">Encipher Only</label></div>
-                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.ku_decipher_only }} <label class="form-check-label" for="{{ unified_form.ku_decipher_only.id_for_label }}">Decipher Only</label></div>
-                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.ku_critical }} <label class="form-check-label" for="{{ unified_form.ku_critical.id_for_label }}">Critical</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound data-leaf-options>{{ unified_form.ku_digital_signature }} <label class="form-check-label" for="{{ unified_form.ku_digital_signature.id_for_label }}">Digital Signature</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound data-leaf-options>{{ unified_form.ku_content_commitment }} <label class="form-check-label" for="{{ unified_form.ku_content_commitment.id_for_label }}">Content Commitment</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound data-leaf-options>{{ unified_form.ku_key_encipherment }} <label class="form-check-label" for="{{ unified_form.ku_key_encipherment.id_for_label }}">Key Encipherment</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound data-leaf-options>{{ unified_form.ku_data_encipherment }} <label class="form-check-label" for="{{ unified_form.ku_data_encipherment.id_for_label }}">Data Encipherment</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound data-leaf-options>{{ unified_form.ku_key_agreement }} <label class="form-check-label" for="{{ unified_form.ku_key_agreement.id_for_label }}">Key Agreement</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound data-leaf-options>{{ unified_form.ku_key_cert_sign }} <label class="form-check-label" for="{{ unified_form.ku_key_cert_sign.id_for_label }}">Key Cert Sign</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound data-leaf-options>{{ unified_form.ku_crl_sign }} <label class="form-check-label" for="{{ unified_form.ku_crl_sign.id_for_label }}">CRL Sign</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound data-leaf-options>{{ unified_form.ku_encipher_only }} <label class="form-check-label" for="{{ unified_form.ku_encipher_only.id_for_label }}">Encipher Only</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound data-leaf-options>{{ unified_form.ku_decipher_only }} <label class="form-check-label" for="{{ unified_form.ku_decipher_only.id_for_label }}">Decipher Only</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound data-leaf-options>{{ unified_form.ku_critical }} <label class="form-check-label" for="{{ unified_form.ku_critical.id_for_label }}">Critical</label></div>
 
-                    <div class="col-12 mt-2">
+                    <div class="col-12 mt-2" data-leaf-options>
                         <h3 class="h6 text-uppercase text-body-secondary mb-2">Extended Key Usage</h3>
                     </div>
-                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.eku_server_auth }} <label class="form-check-label" for="{{ unified_form.eku_server_auth.id_for_label }}">Server Auth</label></div>
-                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.eku_client_auth }} <label class="form-check-label" for="{{ unified_form.eku_client_auth.id_for_label }}">Client Auth</label></div>
-                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.eku_code_signing }} <label class="form-check-label" for="{{ unified_form.eku_code_signing.id_for_label }}">Code Signing</label></div>
-                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.eku_email_protection }} <label class="form-check-label" for="{{ unified_form.eku_email_protection.id_for_label }}">Email Protection</label></div>
-                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.eku_time_stamping }} <label class="form-check-label" for="{{ unified_form.eku_time_stamping.id_for_label }}">Time Stamping</label></div>
-                    <div class="col-md-2 form-check" data-profile-bound>{{ unified_form.eku_ocsp_signing }} <label class="form-check-label" for="{{ unified_form.eku_ocsp_signing.id_for_label }}">OCSP Signing</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound data-leaf-options>{{ unified_form.eku_server_auth }} <label class="form-check-label" for="{{ unified_form.eku_server_auth.id_for_label }}">Server Auth</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound data-leaf-options>{{ unified_form.eku_client_auth }} <label class="form-check-label" for="{{ unified_form.eku_client_auth.id_for_label }}">Client Auth</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound data-leaf-options>{{ unified_form.eku_code_signing }} <label class="form-check-label" for="{{ unified_form.eku_code_signing.id_for_label }}">Code Signing</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound data-leaf-options>{{ unified_form.eku_email_protection }} <label class="form-check-label" for="{{ unified_form.eku_email_protection.id_for_label }}">Email Protection</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound data-leaf-options>{{ unified_form.eku_time_stamping }} <label class="form-check-label" for="{{ unified_form.eku_time_stamping.id_for_label }}">Time Stamping</label></div>
+                    <div class="col-md-2 form-check" data-profile-bound data-leaf-options>{{ unified_form.eku_ocsp_signing }} <label class="form-check-label" for="{{ unified_form.eku_ocsp_signing.id_for_label }}">OCSP Signing</label></div>
 
                     <div class="col-12"><div class="form-text" data-profile-feedback></div></div>
 
