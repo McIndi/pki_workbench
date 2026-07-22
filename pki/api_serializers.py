@@ -1,3 +1,4 @@
+from django.urls import reverse
 from rest_framework import serializers
 
 from .models import CertificateAuthority, CertificateProfile, SignedCertificate
@@ -25,7 +26,7 @@ class CertificateAuthoritySerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if not request:
             return ''
-        return request.build_absolute_uri(f'/pki/ca/{obj.id}/workbench/')
+        return request.build_absolute_uri(reverse('pki-ca-workbench', kwargs={'ca_id': obj.id}))
 
 
 class SignedCertificateSerializer(serializers.ModelSerializer):
@@ -53,7 +54,7 @@ class SignedCertificateSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if not request:
             return ''
-        return request.build_absolute_uri(f'/pki/certificate/{obj.id}/')
+        return request.build_absolute_uri(reverse('pki-issued-certificate-detail', kwargs={'certificate_id': obj.id}))
 
     def get_private_key_algorithm(self, obj):
         if obj.private_key is None:
@@ -64,12 +65,19 @@ class SignedCertificateSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if not request:
             return {}
-        base = f'/pki/certificate/{obj.id}/download/'
         return {
-            'pubcert': request.build_absolute_uri(f'{base}pubcert/'),
-            'pubcert_chain': request.build_absolute_uri(f'{base}pubcert-chain/'),
-            'csr': request.build_absolute_uri(f'{base}csr/'),
-            'pair_zip': request.build_absolute_uri(f'{base}pair-zip/'),
+            'pubcert': request.build_absolute_uri(
+                reverse('pki-issued-certificate-download', kwargs={'certificate_id': obj.id, 'artifact': 'pubcert'})
+            ),
+            'pubcert_chain': request.build_absolute_uri(
+                reverse('pki-issued-certificate-download', kwargs={'certificate_id': obj.id, 'artifact': 'pubcert-chain'})
+            ),
+            'csr': request.build_absolute_uri(
+                reverse('pki-issued-certificate-download', kwargs={'certificate_id': obj.id, 'artifact': 'csr'})
+            ),
+            'pair_zip': request.build_absolute_uri(
+                reverse('pki-issued-certificate-download', kwargs={'certificate_id': obj.id, 'artifact': 'pair-zip'})
+            ),
         }
 
 

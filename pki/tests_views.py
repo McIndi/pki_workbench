@@ -88,7 +88,7 @@ class PKIViewsTests(TestCase):
         imported = CertificateAuthority.objects.get(owner=self.user, name='Imported View Root')
         self.assertRedirects(response, reverse('pki-ca-workbench', kwargs={'ca_id': imported.pk}))
 
-    def test_workbench_unified_issue_action_generates_certificate(self):
+    def test_workbench_post_unified_issue_returns_405(self):
         """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
@@ -133,7 +133,7 @@ class PKIViewsTests(TestCase):
         self.assertContains(response, 'data-profile-form')
         self.assertContains(response, 'data-api-endpoint="/api/profiles/"')
 
-    def test_workbench_unified_issue_action_signs_csr(self):
+    def test_workbench_post_unified_issue_signs_csr_returns_405(self):
         """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
@@ -146,7 +146,7 @@ class PKIViewsTests(TestCase):
         )
         self.assertEqual(response.status_code, 405)
 
-    def test_workbench_unified_create_ca_accepts_issuer_passphrase_fallback(self):
+    def test_workbench_post_unified_issue_issuer_passphrase_fallback_returns_405(self):
         """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
@@ -159,7 +159,7 @@ class PKIViewsTests(TestCase):
         )
         self.assertEqual(response.status_code, 405)
 
-    def test_workbench_unified_create_ca_requires_parent_passphrase_when_parent_key_encrypted(self):
+    def test_workbench_post_unified_issue_encrypted_parent_returns_405(self):
         """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
@@ -172,7 +172,7 @@ class PKIViewsTests(TestCase):
         )
         self.assertEqual(response.status_code, 405)
 
-    def test_workbench_unified_csr_requires_issuer_passphrase_when_issuer_key_encrypted(self):
+    def test_workbench_post_unified_issue_encrypted_issuer_returns_405(self):
         """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
@@ -185,7 +185,7 @@ class PKIViewsTests(TestCase):
         )
         self.assertEqual(response.status_code, 405)
 
-    def test_workbench_manage_delete_certificate_action(self):
+    def test_workbench_post_delete_certificate_returns_405(self):
         """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
@@ -198,7 +198,7 @@ class PKIViewsTests(TestCase):
         )
         self.assertEqual(response.status_code, 405)
 
-    def test_workbench_manage_delete_csr_action(self):
+    def test_workbench_post_delete_csr_returns_405(self):
         """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
@@ -211,7 +211,7 @@ class PKIViewsTests(TestCase):
         )
         self.assertEqual(response.status_code, 405)
 
-    def test_workbench_manage_delete_private_key_action(self):
+    def test_workbench_post_delete_private_key_returns_405(self):
         """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
@@ -224,7 +224,7 @@ class PKIViewsTests(TestCase):
         )
         self.assertEqual(response.status_code, 405)
 
-    def test_workbench_manage_delete_ca_action_redirects_to_fallback_ca(self):
+    def test_workbench_post_delete_ca_returns_405(self):
         """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
@@ -352,7 +352,7 @@ class PKIViewsTests(TestCase):
         )
         self.assertEqual(response.status_code, 404)
 
-    def test_workbench_create_certificate_profile_action(self):
+    def test_workbench_post_create_certificate_profile_returns_405(self):
         """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
@@ -433,7 +433,7 @@ class PKIViewsTests(TestCase):
         self.assertIn('"organization_name": "Pinned Org"', html)
         self.assertIn('data-profile-bound', html)
 
-    def test_profile_tab_remains_active_on_invalid_profile_submit(self):
+    def test_workbench_post_invalid_profile_submit_returns_405(self):
         """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
@@ -533,6 +533,45 @@ class PKIViewsTests(TestCase):
         self.assertEqual(profile.curve_name, 'secp384r1')
         self.assertEqual(profile.organization_name, 'New Org')
         self.assertEqual(profile.organizational_unit_name, 'Security')
+
+    def test_create_profile_from_certificate_detail_returns_400_for_csr_issued_certificate(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Derive Profile CSR Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+        requester_key_pem = services.create_private_key(key_algorithm='rsa', key_size=2048)
+        requester_csr_pem = services.create_csr(
+            private_key_pem=requester_key_pem,
+            subject={
+                **self.subject,
+                'common_name': 'csr-source.example.com',
+            },
+        )
+        issued = issue_signed_certificate_from_csr(
+            owner=self.user,
+            issuer_authority=root,
+            name='CSR Profile Source',
+            csr_pem=requester_csr_pem,
+            days_valid=365,
+        )
+
+        response = self.client.post(
+            reverse('pki-issued-certificate-detail', kwargs={'certificate_id': issued.pk}),
+            data={
+                'from-cert-name': 'Derived from CSR Source',
+                'from-cert-description': 'Should fail because private key is not stored',
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(
+            response,
+            'Cannot derive a profile from a certificate with no stored private key (CSR-issued certificates do not retain one).',
+            status_code=400,
+        )
 
     def test_home_dashboard_shows_counts_and_expiring_certificates(self):
         self.client.force_login(self.user)

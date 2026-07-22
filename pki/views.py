@@ -302,6 +302,7 @@ class IssuedCertificateDetailView(LoginRequiredMixin, View):
 	def post(self, request: HttpRequest, certificate_id: int) -> HttpResponse:
 		certificate = self._get_certificate(request, certificate_id)
 		profile_from_certificate_form = CreateProfileFromCertificateForm(request.POST, prefix='from-cert')
+		response_status = 200
 
 		if profile_from_certificate_form.is_valid():
 			try:
@@ -313,17 +314,20 @@ class IssuedCertificateDetailView(LoginRequiredMixin, View):
 				)
 			except ValidationError as exc:
 				profile_from_certificate_form.add_error(None, exc.message)
+				response_status = 400
 			else:
 				messages.success(request, f'Certificate profile "{profile.name}" created from certificate.')
 				if certificate.issued_by:
 					return redirect('pki-ca-workbench', ca_id=certificate.issued_by.id)
 				return redirect('pki-issued-certificate-detail', certificate_id=certificate.id)
 
-		return render(
+		response = render(
 			request,
 			self.template_name,
 			{'certificate': certificate, 'profile_from_certificate_form': profile_from_certificate_form},
 		)
+		response.status_code = response_status
+		return response
 
 
 class IssuedCertificateDownloadView(LoginRequiredMixin, View):

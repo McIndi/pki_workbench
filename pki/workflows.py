@@ -514,6 +514,10 @@ def create_certificate_profile_from_certificate(
         raise ValidationError('Owner is required.')
     if certificate.owner != owner:
         raise ValidationError('Certificate does not belong to this owner.')
+    if certificate.private_key is None:
+        raise ValidationError(
+            'Cannot derive a profile from a certificate with no stored private key (CSR-issued certificates do not retain one).'
+        )
 
     parsed_certificate = x509.load_pem_x509_certificate(certificate.certificate_pem.encode('utf-8'))
     validity_days = max((certificate.not_valid_after - certificate.not_valid_before).days, 1)

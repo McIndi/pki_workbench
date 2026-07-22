@@ -41,7 +41,7 @@ It is suitable for development, testing, and internal prototyping. Before produc
 
 ## Tech Stack
 
-- Python 3.14+
+- Python 3.11+
 - Django 6
 - Django REST Framework
 - `cryptography`
@@ -201,6 +201,8 @@ python manage.py test pki.tests_cli
 - Use production secret/key management (not plaintext `.env` in runtime environments)
 - Use a production database and backup strategy
 - Add HTTPS termination and security headers
+- Ensure `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS`, and `DJANGO_CSRF_TRUSTED_ORIGINS` are explicitly set before any non-local deployment; treat the defaults as development-only convenience.
+- If you use the CLI's Basic auth option, require HTTPS for all API traffic so credentials are not exposed on the wire.
 - Add structured logging/monitoring/alerting
 - Review API auth strategy (session/basic vs token/JWT)
 - Perform security and compliance review for key/cert handling

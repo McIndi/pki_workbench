@@ -5,7 +5,7 @@ from rest_framework.test import APITestCase
 
 from . import services
 from .models import CertificateAuthority, CertificateProfile, CertificateSigningRequest, PrivateKey, SignedCertificate
-from .workflows import create_root_certificate_authority, issue_signed_certificate
+from .workflows import create_root_certificate_authority, issue_signed_certificate, issue_signed_certificate_from_csr
 
 
 class PKIApiTests(APITestCase):
@@ -36,6 +36,12 @@ class PKIApiTests(APITestCase):
         self.assertIn('certificates', response.data)
         self.assertIn('profiles', response.data)
         self.assertIn('workflows', response.data)
+        self.assertEqual(response.data['cas']['detail_template'], 'http://testserver/api/cas/{id}/')
+        self.assertEqual(response.data['cas']['chain_template'], 'http://testserver/api/cas/{id}/chain/')
+        self.assertEqual(response.data['cas']['children_template'], 'http://testserver/api/cas/{id}/children/')
+        self.assertEqual(response.data['cas']['sign_csr_template'], 'http://testserver/api/cas/{id}/sign-csr/')
+        self.assertEqual(response.data['certificates']['detail_template'], 'http://testserver/api/certificates/{id}/')
+        self.assertEqual(response.data['profiles']['detail_template'], 'http://testserver/api/profiles/{id}/')
 
     def test_openapi_schema_includes_workflow_and_resource_paths(self):
         self.client.force_authenticate(self.user)
@@ -249,6 +255,73 @@ class PKIApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_derive_profile_from_certificate_workflow_endpoint(self):
+        self.client.force_authenticate(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='API Profile Derivation Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+        issued = issue_signed_certificate(
+            owner=self.user,
+            issuer_authority=root,
+            name='API Profile Source Cert',
+            subject={**self.subject, 'common_name': 'api-profile-source.example.com'},
+            key_algorithm='ec',
+            curve_name='secp384r1',
+        )
+
+        response = self.client.post(
+            '/api/workflows/profiles/from-certificate/',
+            {
+                'certificate_id': issued.id,
+                'name': 'API Derived Profile',
+                'description': 'Derived through API workflow',
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['name'], 'API Derived Profile')
+
+    def test_derive_profile_from_csr_issued_certificate_returns_400(self):
+        self.client.force_authenticate(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='API Profile Error Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+        requester_key_pem = services.create_private_key(key_algorithm='rsa', key_size=2048)
+        requester_csr_pem = services.create_csr(
+            private_key_pem=requester_key_pem,
+            subject={**self.subject, 'common_name': 'api-csr-profile-source.example.com'},
+        )
+        issued = issue_signed_certificate_from_csr(
+            owner=self.user,
+            issuer_authority=root,
+            name='API CSR Profile Source',
+            csr_pem=requester_csr_pem,
+            days_valid=365,
+        )
+
+        response = self.client.post(
+            '/api/workflows/profiles/from-certificate/',
+            {
+                'certificate_id': issued.id,
+                'name': 'Should Fail',
+                'description': 'Missing stored private key',
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data['detail'],
+            'Cannot derive a profile from a certificate with no stored private key (CSR-issued certificates do not retain one).',
+        )
 
     def test_delete_workflow_endpoints(self):
         self.client.force_authenticate(self.user)

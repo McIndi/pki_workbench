@@ -32,24 +32,37 @@ class APIRootIndexAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        cas_detail_template = request.build_absolute_uri(reverse('api-cas-detail', args=[0])).replace('/0/', '/{id}/')
+        certificates_detail_template = request.build_absolute_uri(reverse('api-certificates-detail', args=[0])).replace(
+            '/0/', '/{id}/'
+        )
+        profiles_detail_template = request.build_absolute_uri(reverse('api-profiles-detail', args=[0])).replace(
+            '/0/', '/{id}/'
+        )
         return Response(
             {
                 'schema': request.build_absolute_uri(reverse('api-schema')),
                 'dashboard': request.build_absolute_uri(reverse('api-dashboard')),
                 'cas': {
                     'list': request.build_absolute_uri(reverse('api-cas-list')),
-                    'detail_template': request.build_absolute_uri('/api/cas/{id}/'),
-                    'chain_template': request.build_absolute_uri('/api/cas/{id}/chain/'),
-                    'children_template': request.build_absolute_uri('/api/cas/{id}/children/'),
-                    'sign_csr_template': request.build_absolute_uri('/api/cas/{id}/sign-csr/'),
+                    'detail_template': cas_detail_template,
+                    'chain_template': request.build_absolute_uri(reverse('api-cas-chain', args=[0])).replace(
+                        '/0/', '/{id}/'
+                    ),
+                    'children_template': request.build_absolute_uri(reverse('api-cas-children', args=[0])).replace(
+                        '/0/', '/{id}/'
+                    ),
+                    'sign_csr_template': request.build_absolute_uri(reverse('api-cas-sign-csr', args=[0])).replace(
+                        '/0/', '/{id}/'
+                    ),
                 },
                 'certificates': {
                     'list': request.build_absolute_uri(reverse('api-certificates-list')),
-                    'detail_template': request.build_absolute_uri('/api/certificates/{id}/'),
+                    'detail_template': certificates_detail_template,
                 },
                 'profiles': {
                     'list': request.build_absolute_uri(reverse('api-profiles-list')),
-                    'detail_template': request.build_absolute_uri('/api/profiles/{id}/'),
+                    'detail_template': profiles_detail_template,
                 },
                 'workflows': {
                     'create_root_ca': request.build_absolute_uri(reverse('api-workflow-root-ca')),
@@ -75,7 +88,7 @@ def _build_ca_tree(authorities):
             'name': authority.name,
             'depth': authority.depth,
             'children': [],
-            'workbench_url': f'/pki/ca/{authority.id}/workbench/',
+            'workbench_url': reverse('pki-ca-workbench', kwargs={'ca_id': authority.id}),
         }
         for authority in authorities
     }
@@ -195,7 +208,7 @@ class DashboardAPIView(APIView):
                     'not_valid_after': cert.not_valid_after,
                     'days_until_expiry': delta.days,
                     'is_expired': cert.not_valid_after <= now,
-                    'detail_url': f'/pki/certificate/{cert.id}/',
+                    'detail_url': reverse('pki-issued-certificate-detail', kwargs={'certificate_id': cert.id}),
                 }
             )
 

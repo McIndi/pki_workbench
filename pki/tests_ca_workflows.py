@@ -7,6 +7,7 @@ from cryptography import x509
 from . import services
 from .models import CertificateAuthority, CertificateProfile, CertificateSigningRequest, PrivateKey, SignedCertificate
 from .workflows import (
+    create_certificate_profile_from_certificate,
     create_intermediate_certificate_authority,
     create_root_certificate_authority,
     issue_signed_certificate,
@@ -341,3 +342,37 @@ class CertificateAuthorityWorkflowTests(TestCase):
             )
 
         self.assertIn('Unable to sign CSR:', str(exc_info.exception))
+
+    def test_create_certificate_profile_from_csr_issued_certificate_returns_validation_error(self):
+        root = create_root_certificate_authority(
+            owner=self.user_one,
+            name='Profile Derivation Root',
+            subject=self.root_subject,
+            certification_depth=3,
+        )
+        requester_key_pem = services.create_private_key(key_algorithm='rsa', key_size=2048)
+        requester_csr_pem = services.create_csr(
+            private_key_pem=requester_key_pem,
+            subject={
+                **self.root_subject,
+                'common_name': 'csr-profile-source.example.com',
+            },
+        )
+        certificate = issue_signed_certificate_from_csr(
+            owner=self.user_one,
+            issuer_authority=root,
+            name='CSR Profile Source',
+            csr_pem=requester_csr_pem,
+            days_valid=365,
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            'Cannot derive a profile from a certificate with no stored private key (CSR-issued certificates do not retain one).',
+        ):
+            create_certificate_profile_from_certificate(
+                owner=self.user_one,
+                certificate=certificate,
+                name='Derived CSR Profile',
+                description='Should not succeed',
+            )
