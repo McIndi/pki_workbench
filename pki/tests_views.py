@@ -151,6 +151,24 @@ class PKIViewsTests(TestCase):
         self.assertContains(response, 'data-profile-form')
         self.assertContains(response, 'data-api-endpoint="/api/profiles/"')
 
+    def test_workbench_manage_tab_explicitly_states_account_wide_scope(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Manage Scope Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+
+        response = self.client.get(reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Manage All Objects')
+        self.assertContains(
+            response,
+            f'This tab lists every CA, certificate, private key, and CSR in your account. It is not limited to objects under {root.name}.',
+        )
+
     def test_workbench_post_unified_issue_signs_csr_returns_405(self):
         """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)

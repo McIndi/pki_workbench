@@ -137,7 +137,7 @@
                 <button class="nav-link {% if active_tab == 'unified' %}active{% endif %}" id="unified-tab" data-bs-toggle="tab" data-bs-target="#unified-pane" type="button" role="tab">Issue / Sign</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link {% if active_tab == 'manage' %}active{% endif %}" id="manage-tab" data-bs-toggle="tab" data-bs-target="#manage-pane" type="button" role="tab">Manage & Delete</button>
+                <button class="nav-link {% if active_tab == 'manage' %}active{% endif %}" id="manage-tab" data-bs-toggle="tab" data-bs-target="#manage-pane" type="button" role="tab">Manage All Objects</button>
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link {% if active_tab == 'profile' %}active{% endif %}" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profile-pane" type="button" role="tab">Create Certificate Profile</button>
@@ -268,6 +268,7 @@
             </div>
 
             <div class="tab-pane fade {% if active_tab == 'manage' %}show active{% endif %}" id="manage-pane" role="tabpanel">
+                <div class="alert alert-info">This tab lists every CA, certificate, private key, and CSR in your account. It is not limited to objects under {{ ca.name }}.</div>
                 <div class="alert alert-warning">Deletion is permanent and may be blocked when a record is still referenced.</div>
                 <div class="alert d-none" data-manage-feedback></div>
 
