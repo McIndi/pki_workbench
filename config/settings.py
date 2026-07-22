@@ -100,7 +100,7 @@ STATIC_URL = env('DJANGO_STATIC_URL', default='static/')
 AUTH_USER_MODEL = 'accounts.User'
 
 LOGIN_URL = env('DJANGO_LOGIN_URL', default='login')
-LOGIN_REDIRECT_URL = env('DJANGO_LOGIN_REDIRECT_URL', default='profile')
+LOGIN_REDIRECT_URL = env('DJANGO_LOGIN_REDIRECT_URL', default='home')
 LOGOUT_REDIRECT_URL = env('DJANGO_LOGOUT_REDIRECT_URL', default='login')
 
 DEFAULT_AUTO_FIELD = env('DJANGO_DEFAULT_AUTO_FIELD', default='django.db.models.BigAutoField')

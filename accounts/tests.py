@@ -1,5 +1,5 @@
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from .models import Profile
@@ -28,3 +28,15 @@ class ViewSmokeTests(TestCase):
     def test_login_page_loads(self):
         response = self.client.get(reverse('login'))
         self.assertEqual(response.status_code, 200)
+
+    @override_settings(LOGIN_REDIRECT_URL='home')
+    def test_login_redirects_to_home_by_default(self):
+        password = 'safe-password-123'
+        user = get_user_model().objects.create_user(email='login@example.com', password=password)
+
+        response = self.client.post(
+            reverse('login'),
+            {'username': user.email, 'password': password},
+        )
+
+        self.assertRedirects(response, reverse('home'))
