@@ -1,3 +1,4 @@
+.ignore/
 .claude/
 *.pem
 # Byte-compiled / optimized / DLL files
