@@ -182,7 +182,7 @@ class PKIViewsTests(TestCase):
         self.assertContains(response, 'data-profile-form')
         self.assertContains(response, 'data-api-endpoint="/api/profiles/"')
 
-    def test_workbench_manage_tab_explicitly_states_account_wide_scope(self):
+    def test_workbench_manage_tab_explicitly_states_current_ca_scope(self):
         self.client.force_login(self.user)
         root = create_root_certificate_authority(
             owner=self.user,
@@ -194,11 +194,56 @@ class PKIViewsTests(TestCase):
         response = self.client.get(reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Manage All Objects')
+        self.assertContains(response, 'Manage This CA Scope')
         self.assertContains(
             response,
-            f'This tab lists every CA, certificate, private key, and CSR in your account. It is not limited to objects under {root.name}.',
+            f'This tab lists {root.name} and its descendant CAs, plus certificates, private keys, and CSRs linked to that CA scope.',
         )
+
+    def test_workbench_manage_tab_lists_only_current_ca_scope(self):
+        self.client.force_login(self.user)
+        scoped_root = create_root_certificate_authority(
+            owner=self.user,
+            name='Scoped Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+        create_intermediate_certificate_authority(
+            owner=self.user,
+            parent_authority=scoped_root,
+            name='Scoped Child',
+            subject={**self.subject, 'common_name': 'scoped-child.example.com'},
+        )
+        scoped_cert = issue_signed_certificate(
+            owner=self.user,
+            issuer_authority=scoped_root,
+            name='Scoped Leaf Cert',
+            subject={**self.subject, 'common_name': 'scoped-leaf.example.com'},
+        )
+
+        other_root = create_root_certificate_authority(
+            owner=self.user,
+            name='Other Root',
+            subject={**self.subject, 'common_name': 'other-root.example.com'},
+            certification_depth=3,
+        )
+        other_cert = issue_signed_certificate(
+            owner=self.user,
+            issuer_authority=other_root,
+            name='Other Leaf Cert',
+            subject={**self.subject, 'common_name': 'other-leaf.example.com'},
+        )
+
+        response = self.client.get(f"{reverse('pki-ca-workbench', kwargs={'ca_id': scoped_root.pk})}?tab=manage")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Scoped Root')
+        self.assertContains(response, 'Scoped Child')
+        self.assertContains(response, 'Scoped Leaf Cert')
+        self.assertContains(response, f'name="certificate_id" value="{scoped_cert.pk}"')
+        self.assertNotContains(response, 'Other Root')
+        self.assertNotContains(response, 'Other Leaf Cert')
+        self.assertNotContains(response, f'name="certificate_id" value="{other_cert.pk}"')
 
     def test_workbench_manage_tab_delete_forms_include_api_action_and_return_target(self):
         self.client.force_login(self.user)

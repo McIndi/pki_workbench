@@ -4,6 +4,7 @@ import zipfile
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -111,6 +112,21 @@ class CAWorkbenchView(LoginRequiredMixin, View):
 		context = self._build_context(ca, active_tab=active_tab)
 		return render(request, self.template_name, context)
 
+	def _descendant_ca_ids(self, ca: CertificateAuthority) -> list[int]:
+		managed_ids: list[int] = [ca.id]
+		cursor = 0
+		while cursor < len(managed_ids):
+			parent_ids = managed_ids[cursor:]
+			cursor = len(managed_ids)
+			child_ids = list(
+				CertificateAuthority.objects.filter(owner=ca.owner, parent_id__in=parent_ids)
+				.values_list('id', flat=True)
+			)
+			for child_id in child_ids:
+				if child_id not in managed_ids:
+					managed_ids.append(child_id)
+		return managed_ids
+
 	def _build_context(
 		self,
 		ca: CertificateAuthority,
@@ -176,11 +192,24 @@ class CAWorkbenchView(LoginRequiredMixin, View):
 			node = node.parent
 		chain.reverse()
 
-		all_cas = CertificateAuthority.objects.filter(owner=ca.owner).order_by('depth', 'name')
+		managed_ca_ids = self._descendant_ca_ids(ca)
+		all_cas = CertificateAuthority.objects.filter(owner=ca.owner, id__in=managed_ca_ids).order_by('depth', 'name')
 		editable_profiles = CertificateProfile.objects.filter(owner=ca.owner).order_by('name')
-		managed_certificates = SignedCertificate.objects.filter(owner=ca.owner).select_related('issued_by').order_by('-created_at')
-		managed_private_keys = PrivateKey.objects.filter(owner=ca.owner).order_by('-created_at')
-		managed_csrs = CertificateSigningRequest.objects.filter(owner=ca.owner).select_related('private_key').order_by('-created_at')
+		managed_certificates = SignedCertificate.objects.filter(
+			owner=ca.owner,
+			issued_by_id__in=managed_ca_ids,
+		).select_related('issued_by').order_by('-created_at')
+		managed_private_keys = PrivateKey.objects.filter(
+			owner=ca.owner,
+		).filter(
+			Q(certificate_authority__id__in=managed_ca_ids)
+			| Q(certificates__issued_by_id__in=managed_ca_ids)
+			| Q(csrs__signed_certificates__issued_by_id__in=managed_ca_ids),
+		).distinct().order_by('-created_at')
+		managed_csrs = CertificateSigningRequest.objects.filter(
+			owner=ca.owner,
+			signed_certificates__issued_by_id__in=managed_ca_ids,
+		).select_related('private_key').distinct().order_by('-created_at')
 
 		return {
 			'ca': ca,
