@@ -482,7 +482,8 @@ async function submitUnifiedViaApi(form) {
       return;
     }
 
-    renderUnifiedFeedback(form, 'success', ['Request completed successfully.']);
+    renderUnifiedFeedback(form, 'success', ['Request completed successfully. Refreshing workbench...']);
+    window.location.assign(window.location.href);
   } catch (error) {
     renderUnifiedFeedback(form, 'error', ['Unable to reach API endpoint. Falling back to standard form submit.']);
     form.submit();

@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.contrib.staticfiles import finders
 from django.test import TestCase
 from django.urls import reverse
 from io import BytesIO
@@ -117,6 +118,16 @@ class PKIViewsTests(TestCase):
         self.assertContains(response, f'data-ca-id="{root.pk}"')
         self.assertContains(response, 'data-endpoint-issue="/api/workflows/certificates/"')
         self.assertContains(response, 'data-endpoint-intermediate="/api/workflows/intermediate-cas/"')
+
+    def test_workbench_script_refreshes_after_non_intermediate_success(self):
+        script_path = finders.find('pki/workbench.js')
+
+        self.assertIsNotNone(script_path)
+        with open(script_path, encoding='utf-8') as handle:
+            script = handle.read()
+
+        self.assertIn("Request completed successfully. Refreshing workbench...", script)
+        self.assertIn('window.location.assign(window.location.href);', script)
 
     def test_workbench_unified_form_includes_ca_mode_leaf_usage_note(self):
         self.client.force_login(self.user)
