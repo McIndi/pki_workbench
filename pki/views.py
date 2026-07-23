@@ -105,7 +105,10 @@ class CAWorkbenchView(LoginRequiredMixin, View):
 
 	def get(self, request: HttpRequest, ca_id: int) -> HttpResponse:
 		ca = self._get_ca(request, ca_id)
-		context = self._build_context(ca, active_tab='unified')
+		active_tab = request.GET.get('tab', 'unified')
+		if active_tab not in {'unified', 'manage', 'profile'}:
+			active_tab = 'unified'
+		context = self._build_context(ca, active_tab=active_tab)
 		return render(request, self.template_name, context)
 
 	def _build_context(

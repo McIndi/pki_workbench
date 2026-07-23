@@ -268,6 +268,7 @@
             </div>
 
             <div class="tab-pane fade {% if active_tab == 'manage' %}show active{% endif %}" id="manage-pane" role="tabpanel">
+                {% url 'pki-ca-workbench' ca.id as manage_return_url %}
                 <div class="alert alert-info">This tab lists every CA, certificate, private key, and CSR in your account. It is not limited to objects under {{ ca.name }}.</div>
                 <div class="alert alert-warning">Deletion is permanent and may be blocked when a record is still referenced.</div>
                 <div class="alert d-none" data-manage-feedback></div>
@@ -281,6 +282,7 @@
                                 <div class="small text-body-secondary">Serial {{ cert.serial_number }}</div>
                             </div>
                             <form
+                                action="{% url 'api-workflow-delete-certificate' %}"
                                 method="post"
                                 class="m-0"
                                 data-confirm-delete
@@ -291,6 +293,7 @@
                             >
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="delete_certificate">
+                                <input type="hidden" name="next" value="{{ manage_return_url }}?tab=manage">
                                 <input type="hidden" name="certificate_id" value="{{ cert.id }}">
                                 <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
                             </form>
@@ -312,6 +315,7 @@
                                 <button type="button" class="btn btn-sm btn-outline-secondary" disabled>Current</button>
                             {% else %}
                                 <form
+                                    action="{% url 'api-workflow-delete-ca' %}"
                                     method="post"
                                     class="m-0"
                                     data-confirm-delete
@@ -322,6 +326,7 @@
                                 >
                                     {% csrf_token %}
                                     <input type="hidden" name="action" value="delete_ca">
+                                    <input type="hidden" name="next" value="{{ manage_return_url }}?tab=manage">
                                     <input type="hidden" name="target_ca_id" value="{{ authority.id }}">
                                     <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
                                 </form>
@@ -341,6 +346,7 @@
                                 <div class="small text-body-secondary">{{ key.algorithm|upper }}</div>
                             </div>
                             <form
+                                action="{% url 'api-workflow-delete-private-key' %}"
                                 method="post"
                                 class="m-0"
                                 data-confirm-delete
@@ -351,6 +357,7 @@
                             >
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="delete_private_key">
+                                <input type="hidden" name="next" value="{{ manage_return_url }}?tab=manage">
                                 <input type="hidden" name="private_key_id" value="{{ key.id }}">
                                 <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
                             </form>
@@ -369,6 +376,7 @@
                                 <div class="small text-body-secondary">{% if csr.private_key %}Generated{% else %}Imported / External{% endif %}</div>
                             </div>
                             <form
+                                action="{% url 'api-workflow-delete-csr' %}"
                                 method="post"
                                 class="m-0"
                                 data-confirm-delete
@@ -379,6 +387,7 @@
                             >
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="delete_csr">
+                                <input type="hidden" name="next" value="{{ manage_return_url }}?tab=manage">
                                 <input type="hidden" name="csr_id" value="{{ csr.id }}">
                                 <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
                             </form>

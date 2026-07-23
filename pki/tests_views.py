@@ -169,6 +169,70 @@ class PKIViewsTests(TestCase):
             f'This tab lists every CA, certificate, private key, and CSR in your account. It is not limited to objects under {root.name}.',
         )
 
+    def test_workbench_manage_tab_delete_forms_include_api_action_and_return_target(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Manage Delete Fallback Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+        certificate = issue_signed_certificate(
+            owner=self.user,
+            issuer_authority=root,
+            name='Manage Delete Fallback Cert',
+            subject={**self.subject, 'common_name': 'manage-delete-fallback.example.com'},
+        )
+
+        response = self.client.get(reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'action="/api/workflows/delete-certificate/"')
+        self.assertContains(response, f'name="next" value="/pki/ca/{root.pk}/workbench/?tab=manage"')
+        self.assertContains(response, f'name="certificate_id" value="{certificate.pk}"')
+
+    def test_workbench_honors_manage_tab_query_parameter(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Manage Tab Query Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+
+        response = self.client.get(f"{reverse('pki-ca-workbench', kwargs={'ca_id': root.pk})}?tab=manage")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<button class="nav-link active" id="manage-tab"', html=False)
+
+    def test_delete_certificate_workflow_form_post_redirects_back_to_manage_tab(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Delete Redirect Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+        certificate = issue_signed_certificate(
+            owner=self.user,
+            issuer_authority=root,
+            name='Delete Redirect Cert',
+            subject={**self.subject, 'common_name': 'delete-redirect.example.com'},
+        )
+        manage_url = f"{reverse('pki-ca-workbench', kwargs={'ca_id': root.pk})}?tab=manage"
+
+        response = self.client.post(
+            reverse('api-workflow-delete-certificate'),
+            data={'certificate_id': certificate.pk, 'next': manage_url},
+            follow=True,
+        )
+
+        self.assertEqual(response.redirect_chain, [(manage_url, 302)])
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(SignedCertificate.objects.filter(pk=certificate.pk).exists())
+        self.assertContains(response, 'Certificate deleted successfully.')
+        self.assertContains(response, '<button class="nav-link active" id="manage-tab"', html=False)
+
     def test_workbench_post_unified_issue_signs_csr_returns_405(self):
         """CAWorkbenchView is now GET-only; POST returns 405."""
         self.client.force_login(self.user)

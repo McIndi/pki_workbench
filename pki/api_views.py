@@ -1,7 +1,11 @@
+from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db.models import ProtectedError
+from django.http import HttpResponseRedirect
+from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -36,6 +40,32 @@ class APIRootIndexAPIView(APIView):
         certificates_detail_template = request.build_absolute_uri(reverse('api-certificates-detail', args=[0])).replace(
             '/0/', '/{id}/'
         )
+
+
+class DeleteWorkflowRedirectMixin:
+    def _get_redirect_target(self, request):
+        next_url = request.data.get('next')
+        if not next_url:
+            return None
+
+        if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+            return None
+        return next_url
+
+    def _redirect_or_respond(self, request, *, detail, level, response_status):
+        redirect_target = self._get_redirect_target(request)
+        if redirect_target:
+            getattr(messages, level)(request, detail)
+            return redirect(redirect_target)
+        return Response({'detail': detail}, status=response_status)
+
+    def _serializer_error_response(self, request, serializer):
+        redirect_target = self._get_redirect_target(request)
+        if redirect_target:
+            error_text = ' '.join(str(message) for messages_list in serializer.errors.values() for message in messages_list)
+            messages.error(request, error_text or 'Delete request is invalid.')
+            return redirect(redirect_target)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         profiles_detail_template = request.build_absolute_uri(reverse('api-profiles-detail', args=[0])).replace(
             '/0/', '/{id}/'
         )
@@ -536,102 +566,152 @@ class DeleteCertificateWorkflowSerializer(serializers.Serializer):
     certificate_id = serializers.IntegerField()
 
 
-class DeleteCertificateWorkflowAPIView(APIView):
+class DeleteCertificateWorkflowAPIView(DeleteWorkflowRedirectMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = DeleteCertificateWorkflowSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            return self._serializer_error_response(request, serializer)
 
         certificate_id = serializer.validated_data['certificate_id']
         try:
             certificate = SignedCertificate.objects.get(id=certificate_id, owner=request.user)
         except SignedCertificate.DoesNotExist:
-            return Response({'detail': 'Certificate not found.'}, status=status.HTTP_404_NOT_FOUND)
+            return self._redirect_or_respond(
+                request,
+                detail='Certificate not found.',
+                level='error',
+                response_status=status.HTTP_404_NOT_FOUND,
+            )
 
         try:
             certificate.delete()
         except ProtectedError:
-            return Response(
-                {'detail': 'Cannot delete certificate because it is currently referenced.'},
-                status=status.HTTP_400_BAD_REQUEST,
+            return self._redirect_or_respond(
+                request,
+                detail='Cannot delete certificate because it is currently referenced.',
+                level='error',
+                response_status=status.HTTP_400_BAD_REQUEST,
             )
 
-        return Response({'detail': 'Certificate deleted successfully.'}, status=status.HTTP_200_OK)
+        return self._redirect_or_respond(
+            request,
+            detail='Certificate deleted successfully.',
+            level='success',
+            response_status=status.HTTP_200_OK,
+        )
 
 
 class DeleteCAWorkflowSerializer(serializers.Serializer):
     target_ca_id = serializers.IntegerField()
 
 
-class DeleteCAWorkflowAPIView(APIView):
+class DeleteCAWorkflowAPIView(DeleteWorkflowRedirectMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = DeleteCAWorkflowSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            return self._serializer_error_response(request, serializer)
 
         target_ca_id = serializer.validated_data['target_ca_id']
         try:
             target_ca = CertificateAuthority.objects.get(id=target_ca_id, owner=request.user)
         except CertificateAuthority.DoesNotExist:
-            return Response({'detail': 'Certificate authority not found.'}, status=status.HTTP_404_NOT_FOUND)
+            return self._redirect_or_respond(
+                request,
+                detail='Certificate authority not found.',
+                level='error',
+                response_status=status.HTTP_404_NOT_FOUND,
+            )
 
         try:
             target_ca.delete()
         except ProtectedError:
-            return Response(
-                {'detail': 'Cannot delete certificate authority because it has dependent records.'},
-                status=status.HTTP_400_BAD_REQUEST,
+            return self._redirect_or_respond(
+                request,
+                detail='Cannot delete certificate authority because it has dependent records.',
+                level='error',
+                response_status=status.HTTP_400_BAD_REQUEST,
             )
 
-        return Response({'detail': 'Certificate authority deleted successfully.'}, status=status.HTTP_200_OK)
+        return self._redirect_or_respond(
+            request,
+            detail='Certificate authority deleted successfully.',
+            level='success',
+            response_status=status.HTTP_200_OK,
+        )
 
 
 class DeletePrivateKeyWorkflowSerializer(serializers.Serializer):
     private_key_id = serializers.IntegerField()
 
 
-class DeletePrivateKeyWorkflowAPIView(APIView):
+class DeletePrivateKeyWorkflowAPIView(DeleteWorkflowRedirectMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = DeletePrivateKeyWorkflowSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            return self._serializer_error_response(request, serializer)
 
         private_key_id = serializer.validated_data['private_key_id']
         try:
             private_key = PrivateKey.objects.get(id=private_key_id, owner=request.user)
         except PrivateKey.DoesNotExist:
-            return Response({'detail': 'Private key not found.'}, status=status.HTTP_404_NOT_FOUND)
+            return self._redirect_or_respond(
+                request,
+                detail='Private key not found.',
+                level='error',
+                response_status=status.HTTP_404_NOT_FOUND,
+            )
 
         try:
             private_key.delete()
         except ProtectedError:
-            return Response(
-                {'detail': 'Cannot delete private key because it is currently referenced.'},
-                status=status.HTTP_400_BAD_REQUEST,
+            return self._redirect_or_respond(
+                request,
+                detail='Cannot delete private key because it is currently referenced.',
+                level='error',
+                response_status=status.HTTP_400_BAD_REQUEST,
             )
 
-        return Response({'detail': 'Private key deleted successfully.'}, status=status.HTTP_200_OK)
+        return self._redirect_or_respond(
+            request,
+            detail='Private key deleted successfully.',
+            level='success',
+            response_status=status.HTTP_200_OK,
+        )
 
 
 class DeleteCSRWorkflowSerializer(serializers.Serializer):
     csr_id = serializers.IntegerField()
 
 
-class DeleteCSRWorkflowAPIView(APIView):
+class DeleteCSRWorkflowAPIView(DeleteWorkflowRedirectMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = DeleteCSRWorkflowSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            return self._serializer_error_response(request, serializer)
 
         csr_id = serializer.validated_data['csr_id']
         try:
             csr = CertificateSigningRequest.objects.get(id=csr_id, owner=request.user)
         except CertificateSigningRequest.DoesNotExist:
-            return Response({'detail': 'CSR not found.'}, status=status.HTTP_404_NOT_FOUND)
+            return self._redirect_or_respond(
+                request,
+                detail='CSR not found.',
+                level='error',
+                response_status=status.HTTP_404_NOT_FOUND,
+            )
 
         csr.delete()
-        return Response({'detail': 'CSR deleted successfully.'}, status=status.HTTP_200_OK)
+        return self._redirect_or_respond(
+            request,
+            detail='CSR deleted successfully.',
+            level='success',
+            response_status=status.HTTP_200_OK,
+        )
