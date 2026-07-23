@@ -136,6 +136,26 @@ class PKIViewsTests(TestCase):
             'CA certificates always use Digital Signature, Key Cert Sign, and CRL Sign (critical).',
         )
 
+    def test_workbench_unified_form_highlights_leaf_usage_recommended_defaults(self):
+        self.client.force_login(self.user)
+        root = create_root_certificate_authority(
+            owner=self.user,
+            name='Unified Recommended Defaults Root',
+            subject=self.subject,
+            certification_depth=3,
+        )
+
+        response = self.client.get(reverse('pki-ca-workbench', kwargs={'ca_id': root.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-default-leaf-usage-hint')
+        self.assertContains(
+            response,
+            'Defaults for a typical TLS server certificate are pre-selected: Digital Signature, Key Encipherment, Critical, and Server Auth. Adjust as needed.',
+        )
+        self.assertContains(response, 'data-reset-leaf-defaults')
+        self.assertContains(response, 'Reset to recommended defaults')
+
     def test_workbench_profile_form_exposes_api_endpoint_metadata(self):
         self.client.force_login(self.user)
         root = create_root_certificate_authority(

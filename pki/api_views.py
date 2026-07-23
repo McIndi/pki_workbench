@@ -1,7 +1,6 @@
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db.models import ProtectedError
-from django.http import HttpResponseRedirect
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
@@ -40,32 +39,6 @@ class APIRootIndexAPIView(APIView):
         certificates_detail_template = request.build_absolute_uri(reverse('api-certificates-detail', args=[0])).replace(
             '/0/', '/{id}/'
         )
-
-
-class DeleteWorkflowRedirectMixin:
-    def _get_redirect_target(self, request):
-        next_url = request.data.get('next')
-        if not next_url:
-            return None
-
-        if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
-            return None
-        return next_url
-
-    def _redirect_or_respond(self, request, *, detail, level, response_status):
-        redirect_target = self._get_redirect_target(request)
-        if redirect_target:
-            getattr(messages, level)(request, detail)
-            return redirect(redirect_target)
-        return Response({'detail': detail}, status=response_status)
-
-    def _serializer_error_response(self, request, serializer):
-        redirect_target = self._get_redirect_target(request)
-        if redirect_target:
-            error_text = ' '.join(str(message) for messages_list in serializer.errors.values() for message in messages_list)
-            messages.error(request, error_text or 'Delete request is invalid.')
-            return redirect(redirect_target)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         profiles_detail_template = request.build_absolute_uri(reverse('api-profiles-detail', args=[0])).replace(
             '/0/', '/{id}/'
         )
@@ -564,6 +537,36 @@ class DeriveProfileFromCertificateWorkflowAPIView(APIView):
 
 class DeleteCertificateWorkflowSerializer(serializers.Serializer):
     certificate_id = serializers.IntegerField()
+
+
+class DeleteWorkflowRedirectMixin:
+    def _get_redirect_target(self, request):
+        next_url = request.data.get('next')
+        if not next_url:
+            return None
+
+        if not url_has_allowed_host_and_scheme(
+            next_url,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        ):
+            return None
+        return next_url
+
+    def _redirect_or_respond(self, request, *, detail, level, response_status):
+        redirect_target = self._get_redirect_target(request)
+        if redirect_target:
+            getattr(messages, level)(request, detail)
+            return redirect(redirect_target)
+        return Response({'detail': detail}, status=response_status)
+
+    def _serializer_error_response(self, request, serializer):
+        redirect_target = self._get_redirect_target(request)
+        if redirect_target:
+            error_text = ' '.join(str(message) for messages_list in serializer.errors.values() for message in messages_list)
+            messages.error(request, error_text or 'Delete request is invalid.')
+            return redirect(redirect_target)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class DeleteCertificateWorkflowAPIView(DeleteWorkflowRedirectMixin, APIView):

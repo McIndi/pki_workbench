@@ -235,6 +235,40 @@ function updateUnifiedMode(container) {
   });
 }
 
+function resetLeafUsageDefaults(container) {
+  const defaultTrueSuffixes = new Set([
+    'ku_digital_signature',
+    'ku_key_encipherment',
+    'ku_critical',
+    'eku_server_auth',
+  ]);
+  const leafUsageFieldSuffixes = [
+    'ku_digital_signature',
+    'ku_content_commitment',
+    'ku_key_encipherment',
+    'ku_data_encipherment',
+    'ku_key_agreement',
+    'ku_key_cert_sign',
+    'ku_crl_sign',
+    'ku_encipher_only',
+    'ku_decipher_only',
+    'ku_critical',
+    'eku_server_auth',
+    'eku_client_auth',
+    'eku_code_signing',
+    'eku_email_protection',
+    'eku_time_stamping',
+    'eku_ocsp_signing',
+  ];
+
+  leafUsageFieldSuffixes.forEach((suffix) => {
+    const field = getFieldBySuffix(container, suffix);
+    if (field && field.type === 'checkbox') {
+      field.checked = defaultTrueSuffixes.has(suffix);
+    }
+  });
+}
+
 function initDeleteConfirmations() {
   document.querySelectorAll('form[data-confirm-delete]').forEach((form) => {
     form.addEventListener('submit', (event) => {
@@ -690,6 +724,11 @@ function initWorkbench() {
       if (createCaField) {
         createCaField.addEventListener('change', () => updateUnifiedMode(container));
       }
+    }
+
+    const resetDefaultsButton = container.querySelector('[data-reset-leaf-defaults]');
+    if (resetDefaultsButton) {
+      resetDefaultsButton.addEventListener('click', () => resetLeafUsageDefaults(container));
     }
   });
 

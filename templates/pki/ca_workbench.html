@@ -236,7 +236,13 @@
                         </div>
                     </div>
                     <div class="col-12" data-leaf-options>
-                        <h3 class="h6 text-uppercase text-body-secondary mb-2">Key Usage</h3>
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                            <h3 class="h6 text-uppercase text-body-secondary mb-0">Key Usage</h3>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-reset-leaf-defaults>Reset to recommended defaults</button>
+                        </div>
+                        <div class="alert alert-secondary py-2 mb-0" data-default-leaf-usage-hint>
+                            Defaults for a typical TLS server certificate are pre-selected: Digital Signature, Key Encipherment, Critical, and Server Auth. Adjust as needed.
+                        </div>
                     </div>
                     <div class="col-md-2 form-check" data-profile-bound data-leaf-options>{{ unified_form.ku_digital_signature }} <label class="form-check-label" for="{{ unified_form.ku_digital_signature.id_for_label }}">Digital Signature</label></div>
                     <div class="col-md-2 form-check" data-profile-bound data-leaf-options>{{ unified_form.ku_content_commitment }} <label class="form-check-label" for="{{ unified_form.ku_content_commitment.id_for_label }}">Content Commitment</label></div>
