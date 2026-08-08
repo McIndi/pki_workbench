@@ -5,6 +5,8 @@ from .models import CertificateAuthority, CertificateProfile, SignedCertificate
 
 
 class CertificateAuthoritySerializer(serializers.ModelSerializer):
+    """Serializes a CertificateAuthority for the API, including its parent, depth, and workbench URL."""
+
     parent_id = serializers.IntegerField(source='parent.id', allow_null=True, read_only=True)
     is_root = serializers.BooleanField(read_only=True)
     workbench_url = serializers.SerializerMethodField()
@@ -30,6 +32,8 @@ class CertificateAuthoritySerializer(serializers.ModelSerializer):
 
 
 class SignedCertificateSerializer(serializers.ModelSerializer):
+    """Serializes a SignedCertificate for the API, including its issuer, key algorithm, and download URLs."""
+
     issued_by_id = serializers.IntegerField(source='issued_by.id', allow_null=True, read_only=True)
     private_key_algorithm = serializers.SerializerMethodField()
     detail_url = serializers.SerializerMethodField()
@@ -82,6 +86,8 @@ class SignedCertificateSerializer(serializers.ModelSerializer):
 
 
 class CertificateProfileSerializer(serializers.ModelSerializer):
+    """Serializes a CertificateProfile for the API, enforcing a unique name per owner."""
+
     class Meta:
         model = CertificateProfile
         fields = [

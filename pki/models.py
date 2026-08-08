@@ -6,6 +6,8 @@ from encrypted_fields.fields import EncryptedTextField
 
 
 class PrivateKey(models.Model):
+	"""An encrypted-at-rest private key, generated for a CA or an end-entity certificate."""
+
 	class Algorithm(models.TextChoices):
 		RSA = 'rsa', 'RSA'
 		EC = 'ec', 'Elliptic Curve'
@@ -33,6 +35,8 @@ class PrivateKey(models.Model):
 
 
 class CertificateSigningRequest(models.Model):
+	"""A stored CSR, optionally linked to the PrivateKey that generated it."""
+
 	name = models.CharField(max_length=150)
 	owner = models.ForeignKey(
 		settings.AUTH_USER_MODEL,
@@ -51,6 +55,8 @@ class CertificateSigningRequest(models.Model):
 
 
 class SignedCertificate(models.Model):
+	"""A certificate issued by a CertificateAuthority (or self-signed), with its validity window."""
+
 	name = models.CharField(max_length=150)
 	owner = models.ForeignKey(
 		settings.AUTH_USER_MODEL,
@@ -85,6 +91,8 @@ class SignedCertificate(models.Model):
 
 
 class CertificateProfile(models.Model):
+	"""Reusable issuance policy: key defaults, subject constraints, and key usage flags."""
+
 	name = models.CharField(max_length=150)
 	owner = models.ForeignKey(
 		settings.AUTH_USER_MODEL,
@@ -186,6 +194,8 @@ class CertificateProfile(models.Model):
 
 
 class CertificateAuthority(models.Model):
+	"""A root or intermediate CA: a key/certificate pair plus its position in the trust chain."""
+
 	name = models.CharField(max_length=150)
 	owner = models.ForeignKey(
 		settings.AUTH_USER_MODEL,

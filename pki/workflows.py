@@ -50,6 +50,7 @@ def create_root_certificate_authority(
     passphrase: str | bytes | bytearray | memoryview | None = None,
     days_valid: int = 3650,
 ) -> CertificateAuthority:
+    """Generate a key, self-sign a root CA certificate, and persist the resulting CertificateAuthority."""
     if owner is None:
         raise ValidationError('Owner is required.')
 
@@ -121,6 +122,7 @@ def create_intermediate_certificate_authority(
     parent_key_passphrase: str | bytes | bytearray | memoryview | None = None,
     days_valid: int = 1825,
 ) -> CertificateAuthority:
+    """Generate a key, have *parent_authority* sign an intermediate CA certificate, and persist it."""
     if owner is None:
         raise ValidationError('Owner is required.')
 
@@ -226,6 +228,7 @@ def issue_signed_certificate(
     key_usage: dict | None = None,
     extended_key_usages: list[str] | None = None,
 ) -> SignedCertificate:
+    """Generate a key, issue an end-entity certificate from *issuer_authority*, and persist it."""
     if owner is None:
         raise ValidationError('Owner is required.')
     if issuer_authority.owner != owner:

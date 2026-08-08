@@ -62,6 +62,7 @@ def _sign_algorithm_for_private_key(private_key):
 
 
 def load_private_key(private_key_pem: bytes, *, passphrase: str | bytes | bytearray | memoryview | None = None):
+    """Deserialize a PEM-encoded private key, decrypting it with *passphrase* if given."""
     return serialization.load_pem_private_key(private_key_pem, password=_passphrase_to_bytes(passphrase))
 
 
@@ -73,6 +74,7 @@ def create_private_key(
     key_size: int = 2048,
     public_exponent: int = 65537,
 ) -> bytes:
+    """Generate a new private key for *key_algorithm* and return it PEM-encoded."""
     if key_algorithm == 'rsa':
         private_key = rsa.generate_private_key(public_exponent=public_exponent, key_size=key_size)
     elif key_algorithm == 'ec':
@@ -116,6 +118,7 @@ def create_csr(
     passphrase: str | bytes | bytearray | memoryview | None = None,
     san_dns_names: list[str] | None = None,
 ) -> bytes:
+    """Build and sign a PEM-encoded CSR for *subject* using *private_key_pem*."""
     private_key = load_private_key(private_key_pem, passphrase=passphrase)
     if not isinstance(private_key, ISSUER_PRIVATE_KEY_TYPES):
         raise TypeError('Unsupported key type for CSR signing.')

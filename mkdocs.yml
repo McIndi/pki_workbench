@@ -1,0 +1,38 @@
+site_name: PKI Workbench
+site_description: Documentation for PKI Workbench, a certificate authority management application
+site_url: https://www.mcindi.com/pki_workbench/
+repo_url: https://github.com/McIndi/pki_workbench
+
+theme:
+  name: mkdocs
+
+plugins:
+  - search
+  - mermaid2
+  - gen-files:
+      scripts:
+        - tools/docs/generate_rest_api_reference.py
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.]
+          options:
+            docstring_options:
+              warn_missing_types: false
+
+markdown_extensions:
+  - admonition
+
+nav:
+  - Overview: index.md
+  - Guide:
+      - Installation: guide/installation.md
+      - Configuration: guide/configuration.md
+      - API Quick Start: guide/api-quick-start.md
+      - CLI: guide/cli.md
+      - Production Readiness Checklist: guide/production-checklist.md
+  - Reference:
+      - Overview: reference/index.md
+      - REST API: reference/rest-api.md
+      - OpenAPI Schema: reference/openapi.json
+      - Python API: reference/python-api.md

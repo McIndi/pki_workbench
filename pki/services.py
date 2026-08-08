@@ -270,6 +270,7 @@ def create_self_signed_ca(
     key_usage: dict | None = None,
     extended_key_usages: list[str] | None = None,
 ) -> bytes:
+    """Build and self-sign a new CA certificate for *subject*, returning it PEM-encoded."""
     private_key = load_private_key(private_key_pem, passphrase=passphrase)
     if not isinstance(private_key, ISSUER_PRIVATE_KEY_TYPES):
         raise TypeError('Unsupported key type for CA certificate signing.')
@@ -329,6 +330,7 @@ def sign_certificate(
     key_usage: dict | None = None,
     extended_key_usages: list[str] | None = None,
 ) -> bytes:
+    """Sign *csr_pem* with the given CA's key/certificate and return the issued certificate PEM-encoded."""
     csr = x509.load_pem_x509_csr(csr_pem)
     ca_cert = x509.load_pem_x509_certificate(ca_cert_pem)
     ca_private_key = load_private_key(ca_private_key_pem, passphrase=ca_passphrase)
@@ -457,6 +459,7 @@ def verify_certificate_signature(*, certificate_pem: bytes, issuer_certificate_p
 
 
 def parse_certificate_info(certificate_pem: bytes) -> dict:
+    """Parse a PEM-encoded certificate into a dict of subject, validity, and serial number fields."""
     certificate = x509.load_pem_x509_certificate(certificate_pem)
 
     subject = {

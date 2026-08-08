@@ -8,6 +8,10 @@ PKI Workbench is a Django-based certificate authority management application for
 
 It is suitable for development, testing, and internal prototyping. Before production deployment, you should complete hardening tasks such as secure secret management, strict host/TLS config, production-grade database/storage choices, observability, backup/recovery strategy, and security review.
 
+## Documentation
+
+Read the full documentation at **https://www.mcindi.com/pki_workbench/**.
+
 ## Major Features
 
 - Root CA creation with configurable key algorithm and certification depth
@@ -209,4 +213,4 @@ python manage.py test pki.tests_cli
 
 ## License
 
-GPLv3
+PKI Workbench is licensed under the GNU General Public License v3.0 (GPLv3). See [LICENSE](LICENSE) for the full text.

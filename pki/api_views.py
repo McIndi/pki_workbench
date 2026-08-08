@@ -32,6 +32,8 @@ from .workflows import (
 
 
 class APIRootIndexAPIView(APIView):
+    """List the absolute URLs for every resource and workflow endpoint the API exposes."""
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -106,6 +108,8 @@ def _build_ca_tree(authorities):
 
 
 class CertificateAuthorityViewSet(viewsets.ReadOnlyModelViewSet):
+    """Read-only access to the caller's certificate authorities, plus chain/children/sign-csr actions."""
+
     serializer_class = CertificateAuthoritySerializer
     permission_classes = [IsAuthenticated]
 
@@ -164,6 +168,8 @@ class CertificateAuthorityViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class SignedCertificateViewSet(viewsets.ReadOnlyModelViewSet):
+    """Read-only access to the caller's issued certificates."""
+
     serializer_class = SignedCertificateSerializer
     permission_classes = [IsAuthenticated]
 
@@ -176,6 +182,8 @@ class SignedCertificateViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class CertificateProfileViewSet(viewsets.ModelViewSet):
+    """CRUD access to the caller's certificate profiles."""
+
     serializer_class = CertificateProfileSerializer
     permission_classes = [IsAuthenticated]
 
@@ -187,6 +195,8 @@ class CertificateProfileViewSet(viewsets.ModelViewSet):
 
 
 class DashboardAPIView(APIView):
+    """Summarize the caller's CAs, certificates, and profiles, plus certificates nearing expiry."""
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -250,6 +260,8 @@ class RootCACreateSerializer(serializers.Serializer):
 
 
 class RootCAWorkflowAPIView(APIView):
+    """Create a new root certificate authority."""
+
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -306,6 +318,8 @@ class IntermediateWorkflowSerializer(serializers.Serializer):
 
 
 class IntermediateCAWorkflowAPIView(APIView):
+    """Create a new intermediate certificate authority under a parent CA the caller owns."""
+
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -356,6 +370,8 @@ class ImportCAWorkflowSerializer(serializers.Serializer):
 
 
 class ImportCAWorkflowAPIView(APIView):
+    """Import an externally issued certificate and private key as a managed certificate authority."""
+
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -454,6 +470,8 @@ class CertificateWorkflowSerializer(serializers.Serializer):
 
 
 class IssueCertificateWorkflowAPIView(APIView):
+    """Issue a new end-entity certificate from a CA the caller owns, with server-generated key material."""
+
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -506,6 +524,8 @@ class DeriveProfileWorkflowSerializer(serializers.Serializer):
 
 
 class DeriveProfileFromCertificateWorkflowAPIView(APIView):
+    """Create a reusable certificate profile from the key/extension settings of an existing certificate."""
+
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -570,6 +590,8 @@ class DeleteWorkflowRedirectMixin:
 
 
 class DeleteCertificateWorkflowAPIView(DeleteWorkflowRedirectMixin, APIView):
+    """Delete a certificate the caller owns."""
+
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -611,6 +633,8 @@ class DeleteCAWorkflowSerializer(serializers.Serializer):
 
 
 class DeleteCAWorkflowAPIView(DeleteWorkflowRedirectMixin, APIView):
+    """Delete a certificate authority the caller owns."""
+
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -652,6 +676,8 @@ class DeletePrivateKeyWorkflowSerializer(serializers.Serializer):
 
 
 class DeletePrivateKeyWorkflowAPIView(DeleteWorkflowRedirectMixin, APIView):
+    """Delete a private key the caller owns."""
+
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -693,6 +719,8 @@ class DeleteCSRWorkflowSerializer(serializers.Serializer):
 
 
 class DeleteCSRWorkflowAPIView(DeleteWorkflowRedirectMixin, APIView):
+    """Delete a certificate signing request the caller owns."""
+
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
